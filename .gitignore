@@ -1,0 +1,31 @@
+# Virtual environment
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Generated outputs
+outputs/charts/
+outputs/reports/
+
+# Uploaded datasets
+data/uploads/
+
+# OS
+.DS_Store
+Thumbs.db

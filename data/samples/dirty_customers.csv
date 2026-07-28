@@ -1,0 +1,10 @@
+customer_id,age,income,contract_type,tenure,churn
+1,25,35000,Monthly,4,Yes
+2,41,62000,Annual,28,No
+3,,48000,Monthly,9,Yes
+4,29,,Annual,19,No
+5,52,75000,,45,No
+6,36,55000,Monthly,7,Yes
+7,44,68000,Annual,34,No
+8,27,39000,Monthly,5,Yes
+8,27,39000,Monthly,5,Yes
