@@ -1,0 +1,1013 @@
+/* ============================================================
+   AGENTIC ANALYTICS ENGINE
+   Application Design System
+   ============================================================ */
+
+
+/* ------------------------------------------------------------
+   01. DESIGN TOKENS
+   ------------------------------------------------------------ */
+
+:root {
+    --aa-bg: #0b0d10;
+    --aa-bg-elevated: #101318;
+    --aa-surface: #13171d;
+    --aa-surface-hover: #171c23;
+    --aa-surface-soft: #0f1318;
+
+    --aa-border: #252b34;
+    --aa-border-soft: #1c222a;
+    --aa-border-strong: #343c47;
+
+    --aa-text: #f3f5f7;
+    --aa-text-secondary: #a7afb9;
+    --aa-text-muted: #707986;
+
+    --aa-accent: #7c9cff;
+    --aa-accent-soft: rgba(124, 156, 255, 0.12);
+    --aa-accent-border: rgba(124, 156, 255, 0.30);
+
+    --aa-success: #58c79a;
+    --aa-success-soft: rgba(88, 199, 154, 0.10);
+
+    --aa-warning: #e3b765;
+    --aa-warning-soft: rgba(227, 183, 101, 0.10);
+
+    --aa-danger: #e87575;
+    --aa-danger-soft: rgba(232, 117, 117, 0.10);
+
+    --aa-radius-sm: 6px;
+    --aa-radius-md: 10px;
+    --aa-radius-lg: 14px;
+
+    --aa-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.20),
+        0 8px 24px rgba(0, 0, 0, 0.10);
+}
+
+
+/* ------------------------------------------------------------
+   02. GLOBAL APPLICATION
+   ------------------------------------------------------------ */
+
+html,
+body,
+[class*="css"] {
+    font-family:
+        Inter,
+        ui-sans-serif,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+}
+
+html,
+body,
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"] {
+    background: var(--aa-bg);
+    color: var(--aa-text);
+}
+
+[data-testid="stAppViewContainer"] {
+    background:
+        radial-gradient(
+            circle at 78% -10%,
+            rgba(124, 156, 255, 0.055),
+            transparent 30rem
+        ),
+        var(--aa-bg);
+}
+
+[data-testid="stMainBlockContainer"] {
+    max-width: 1440px;
+    padding-top: 2.2rem;
+    padding-bottom: 5rem;
+}
+
+::selection {
+    background: rgba(124, 156, 255, 0.28);
+    color: #ffffff;
+}
+
+
+/* ------------------------------------------------------------
+   03. TYPOGRAPHY
+   ------------------------------------------------------------ */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: var(--aa-text) !important;
+    letter-spacing: -0.025em;
+}
+
+h1 {
+    font-size: clamp(2rem, 4vw, 3rem) !important;
+    font-weight: 650 !important;
+    line-height: 1.05 !important;
+}
+
+h2 {
+    font-size: 1.55rem !important;
+    font-weight: 620 !important;
+}
+
+h3 {
+    font-size: 1.1rem !important;
+    font-weight: 600 !important;
+}
+
+p,
+li,
+label {
+    color: var(--aa-text-secondary);
+}
+
+small {
+    color: var(--aa-text-muted);
+}
+
+code {
+    color: #c7d3ff !important;
+    background: #151a22 !important;
+    border: 1px solid var(--aa-border-soft);
+    border-radius: 5px;
+}
+
+
+/* ------------------------------------------------------------
+   04. APP BRAND
+   ------------------------------------------------------------ */
+
+.aa-brand {
+    margin-bottom: 2.25rem;
+}
+
+.aa-brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 34px;
+    height: 34px;
+
+    margin-bottom: 0.85rem;
+
+    border: 1px solid var(--aa-accent-border);
+    border-radius: 9px;
+
+    background: var(--aa-accent-soft);
+    color: #a9bbff;
+
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.aa-brand-name {
+    color: var(--aa-text);
+
+    font-size: 0.96rem;
+    font-weight: 680;
+    letter-spacing: -0.01em;
+}
+
+.aa-brand-subtitle {
+    margin-top: 0.18rem;
+
+    color: var(--aa-text-muted);
+
+    font-size: 0.76rem;
+    line-height: 1.45;
+}
+
+
+/* ------------------------------------------------------------
+   05. PAGE HEADER
+   ------------------------------------------------------------ */
+
+.aa-page-header {
+    margin-bottom: 2rem;
+}
+
+.aa-eyebrow {
+    margin-bottom: 0.55rem;
+
+    color: var(--aa-accent);
+
+    font-size: 0.71rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.aa-page-title {
+    margin: 0;
+
+    color: var(--aa-text);
+
+    font-size: 2.15rem;
+    font-weight: 650;
+    letter-spacing: -0.045em;
+    line-height: 1.08;
+}
+
+.aa-page-description {
+    max-width: 720px;
+
+    margin-top: 0.65rem;
+
+    color: var(--aa-text-secondary);
+
+    font-size: 0.95rem;
+    line-height: 1.65;
+}
+
+
+/* ------------------------------------------------------------
+   06. DATASET HEADER
+   ------------------------------------------------------------ */
+
+.aa-dataset-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+
+    margin-bottom: 1.6rem;
+    padding-bottom: 1.25rem;
+
+    border-bottom: 1px solid var(--aa-border-soft);
+}
+
+.aa-dataset-name {
+    color: var(--aa-text);
+
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.aa-dataset-meta {
+    margin-top: 0.25rem;
+
+    color: var(--aa-text-muted);
+
+    font-size: 0.78rem;
+}
+
+.aa-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+
+    padding: 0.36rem 0.65rem;
+
+    border: 1px solid rgba(88, 199, 154, 0.20);
+    border-radius: 999px;
+
+    background: var(--aa-success-soft);
+    color: #82d8b5;
+
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.aa-status-dot {
+    width: 6px;
+    height: 6px;
+
+    border-radius: 50%;
+    background: var(--aa-success);
+}
+
+
+/* ------------------------------------------------------------
+   07. KPI CARDS
+   ------------------------------------------------------------ */
+
+.aa-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.85rem;
+
+    margin: 1.25rem 0 2rem;
+}
+
+.aa-kpi {
+    min-height: 118px;
+
+    padding: 1.05rem 1.1rem;
+
+    border: 1px solid var(--aa-border-soft);
+    border-radius: var(--aa-radius-md);
+
+    background: var(--aa-surface-soft);
+}
+
+.aa-kpi-label {
+    color: var(--aa-text-muted);
+
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.035em;
+    text-transform: uppercase;
+}
+
+.aa-kpi-value {
+    margin-top: 0.65rem;
+
+    color: var(--aa-text);
+
+    font-size: 1.65rem;
+    font-weight: 640;
+    letter-spacing: -0.035em;
+}
+
+.aa-kpi-detail {
+    margin-top: 0.3rem;
+
+    color: var(--aa-text-muted);
+
+    font-size: 0.72rem;
+}
+
+
+/* ------------------------------------------------------------
+   08. PANELS / CARDS
+   ------------------------------------------------------------ */
+
+.aa-panel {
+    margin-bottom: 1rem;
+    padding: 1.2rem;
+
+    border: 1px solid var(--aa-border-soft);
+    border-radius: var(--aa-radius-md);
+
+    background: var(--aa-surface-soft);
+}
+
+.aa-panel-title {
+    margin-bottom: 0.4rem;
+
+    color: var(--aa-text);
+
+    font-size: 0.9rem;
+    font-weight: 620;
+}
+
+.aa-panel-description {
+    color: var(--aa-text-muted);
+
+    font-size: 0.78rem;
+    line-height: 1.55;
+}
+
+
+/* ------------------------------------------------------------
+   09. SECTION HEADERS
+   ------------------------------------------------------------ */
+
+.aa-section {
+    margin-top: 2.5rem;
+    margin-bottom: 1.1rem;
+}
+
+.aa-section-label {
+    color: var(--aa-text);
+
+    font-size: 1.05rem;
+    font-weight: 620;
+    letter-spacing: -0.02em;
+}
+
+.aa-section-description {
+    margin-top: 0.3rem;
+
+    color: var(--aa-text-muted);
+
+    font-size: 0.8rem;
+}
+
+
+/* ------------------------------------------------------------
+   10. INSIGHT LIST
+   ------------------------------------------------------------ */
+
+.aa-insight {
+    display: flex;
+    gap: 0.85rem;
+
+    padding: 1rem 0;
+
+    border-bottom: 1px solid var(--aa-border-soft);
+}
+
+.aa-insight:last-child {
+    border-bottom: none;
+}
+
+.aa-insight-index {
+    flex: 0 0 auto;
+
+    width: 26px;
+    height: 26px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: 1px solid var(--aa-border);
+    border-radius: 7px;
+
+    color: var(--aa-text-muted);
+
+    font-size: 0.68rem;
+    font-weight: 650;
+}
+
+.aa-insight-text {
+    color: var(--aa-text-secondary);
+
+    font-size: 0.88rem;
+    line-height: 1.6;
+}
+
+
+/* ------------------------------------------------------------
+   11. SIDEBAR
+   ------------------------------------------------------------ */
+
+[data-testid="stSidebar"] {
+    border-right: 1px solid var(--aa-border-soft);
+
+    background: #0d1014;
+}
+
+[data-testid="stSidebar"] > div:first-child {
+    padding-top: 1.5rem;
+}
+
+[data-testid="stSidebar"] hr {
+    border-color: var(--aa-border-soft);
+}
+
+.aa-sidebar-label {
+    margin-top: 1.3rem;
+    margin-bottom: 0.55rem;
+
+    color: #5f6875;
+
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+}
+
+.aa-sidebar-dataset {
+    padding: 0.85rem;
+
+    border: 1px solid var(--aa-border-soft);
+    border-radius: 9px;
+
+    background: var(--aa-surface-soft);
+}
+
+.aa-sidebar-file {
+    overflow: hidden;
+
+    color: var(--aa-text);
+
+    font-size: 0.8rem;
+    font-weight: 580;
+
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.aa-sidebar-meta {
+    margin-top: 0.3rem;
+
+    color: var(--aa-text-muted);
+
+    font-size: 0.7rem;
+}
+
+
+/* ------------------------------------------------------------
+   12. BUTTONS
+   ------------------------------------------------------------ */
+
+.stButton > button,
+.stDownloadButton > button {
+    min-height: 2.55rem;
+
+    border: 1px solid var(--aa-border) !important;
+    border-radius: 8px !important;
+
+    background: var(--aa-surface) !important;
+    color: var(--aa-text) !important;
+
+    font-size: 0.82rem !important;
+    font-weight: 570 !important;
+
+    box-shadow: none !important;
+
+    transition:
+        background 140ms ease,
+        border-color 140ms ease,
+        transform 140ms ease;
+}
+
+.stButton > button:hover,
+.stDownloadButton > button:hover {
+    border-color: var(--aa-border-strong) !important;
+
+    background: var(--aa-surface-hover) !important;
+    color: #ffffff !important;
+
+    transform: translateY(-1px);
+}
+
+.stButton > button[kind="primary"] {
+    border-color: #718ee6 !important;
+
+    background: #718ee6 !important;
+    color: #080a0e !important;
+
+    font-weight: 650 !important;
+}
+
+.stButton > button[kind="primary"]:hover {
+    border-color: #829cf0 !important;
+    background: #829cf0 !important;
+}
+
+
+/* ------------------------------------------------------------
+   13. FILE UPLOADER
+   ------------------------------------------------------------ */
+
+[data-testid="stFileUploader"] {
+    padding: 1.4rem;
+
+    border: 1px dashed #343c48;
+    border-radius: var(--aa-radius-lg);
+
+    background: var(--aa-surface-soft);
+}
+
+[data-testid="stFileUploader"]:hover {
+    border-color: var(--aa-accent-border);
+}
+
+[data-testid="stFileUploaderDropzone"] {
+    border: none !important;
+    background: transparent !important;
+}
+
+[data-testid="stFileUploaderDropzoneInstructions"] span {
+    color: var(--aa-text-secondary) !important;
+}
+
+
+/* ------------------------------------------------------------
+   14. EMPTY / LANDING STATE
+   ------------------------------------------------------------ */
+
+.aa-hero {
+    max-width: 760px;
+
+    margin: 5rem auto 2rem;
+
+    text-align: center;
+}
+
+.aa-hero-mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 48px;
+    height: 48px;
+
+    margin: 0 auto 1.35rem;
+
+    border: 1px solid var(--aa-accent-border);
+    border-radius: 13px;
+
+    background: var(--aa-accent-soft);
+    color: #a8baff;
+
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.aa-hero-title {
+    color: var(--aa-text);
+
+    font-size: clamp(2.1rem, 5vw, 3.35rem);
+    font-weight: 650;
+    letter-spacing: -0.055em;
+    line-height: 1.03;
+}
+
+.aa-hero-description {
+    max-width: 620px;
+
+    margin: 1rem auto 0;
+
+    color: var(--aa-text-secondary);
+
+    font-size: 0.98rem;
+    line-height: 1.7;
+}
+
+.aa-hero-features {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+
+    margin-top: 1.4rem;
+}
+
+.aa-feature-pill {
+    padding: 0.42rem 0.7rem;
+
+    border: 1px solid var(--aa-border-soft);
+    border-radius: 999px;
+
+    background: var(--aa-surface-soft);
+    color: var(--aa-text-muted);
+
+    font-size: 0.72rem;
+}
+
+
+/* ------------------------------------------------------------
+   15. TABS
+   ------------------------------------------------------------ */
+
+.stTabs [data-baseweb="tab-list"] {
+    gap: 1.5rem;
+
+    border-bottom: 1px solid var(--aa-border-soft);
+}
+
+.stTabs [data-baseweb="tab"] {
+    height: 2.8rem;
+
+    padding-left: 0;
+    padding-right: 0;
+
+    background: transparent;
+
+    color: var(--aa-text-muted);
+
+    font-size: 0.82rem;
+    font-weight: 570;
+}
+
+.stTabs [aria-selected="true"] {
+    color: var(--aa-text) !important;
+}
+
+.stTabs [data-baseweb="tab-highlight"] {
+    background: var(--aa-accent) !important;
+}
+
+
+/* ------------------------------------------------------------
+   16. EXPANDERS
+   ------------------------------------------------------------ */
+
+[data-testid="stExpander"] {
+    overflow: hidden;
+
+    border: 1px solid var(--aa-border-soft) !important;
+    border-radius: 9px !important;
+
+    background: var(--aa-surface-soft);
+}
+
+[data-testid="stExpander"] summary {
+    color: var(--aa-text-secondary);
+}
+
+
+/* ------------------------------------------------------------
+   17. DATAFRAMES
+   ------------------------------------------------------------ */
+
+[data-testid="stDataFrame"] {
+    overflow: hidden;
+
+    border: 1px solid var(--aa-border-soft);
+    border-radius: 9px;
+}
+
+
+/* ------------------------------------------------------------
+   18. ALERTS
+   ------------------------------------------------------------ */
+
+[data-testid="stAlert"] {
+    border-radius: 9px;
+}
+
+div[data-testid="stAlert"] {
+    border-color: var(--aa-border-soft);
+}
+
+
+/* ------------------------------------------------------------
+   19. AI ANALYST
+   ------------------------------------------------------------ */
+
+.aa-analyst-header {
+    margin-bottom: 1.6rem;
+}
+
+.aa-analyst-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+
+    margin-bottom: 0.85rem;
+    padding: 0.36rem 0.62rem;
+
+    border: 1px solid var(--aa-accent-border);
+    border-radius: 999px;
+
+    background: var(--aa-accent-soft);
+    color: #aabaff;
+
+    font-size: 0.7rem;
+    font-weight: 650;
+}
+
+.aa-analyst-title {
+    color: var(--aa-text);
+
+    font-size: 1.8rem;
+    font-weight: 640;
+    letter-spacing: -0.04em;
+}
+
+.aa-analyst-description {
+    max-width: 650px;
+
+    margin-top: 0.45rem;
+
+    color: var(--aa-text-secondary);
+
+    font-size: 0.88rem;
+    line-height: 1.6;
+}
+
+
+/* ------------------------------------------------------------
+   20. CHAT MESSAGES
+   ------------------------------------------------------------ */
+
+[data-testid="stChatMessage"] {
+    margin-bottom: 0.65rem;
+    padding: 1rem 1.05rem;
+
+    border: 1px solid var(--aa-border-soft);
+    border-radius: 11px;
+
+    background: var(--aa-surface-soft);
+}
+
+[data-testid="stChatMessage"] p {
+    color: var(--aa-text-secondary);
+
+    font-size: 0.88rem;
+    line-height: 1.65;
+}
+
+
+/* ------------------------------------------------------------
+   21. CHAT INPUT
+   ------------------------------------------------------------ */
+
+[data-testid="stChatInput"] {
+    border: 1px solid var(--aa-border) !important;
+    border-radius: 11px !important;
+
+    background: var(--aa-surface) !important;
+}
+
+[data-testid="stChatInput"] textarea {
+    color: var(--aa-text) !important;
+}
+
+[data-testid="stChatInput"]:focus-within {
+    border-color: var(--aa-accent-border) !important;
+}
+
+
+/* ------------------------------------------------------------
+   22. EVIDENCE
+   ------------------------------------------------------------ */
+
+.aa-evidence {
+    margin-top: 0.85rem;
+    padding: 0.85rem;
+
+    border: 1px solid var(--aa-border-soft);
+    border-radius: 8px;
+
+    background: #0d1116;
+}
+
+.aa-evidence-label {
+    color: var(--aa-text-muted);
+
+    font-size: 0.67rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.aa-evidence-value {
+    margin-top: 0.35rem;
+
+    color: var(--aa-text-secondary);
+
+    font-size: 0.8rem;
+}
+
+
+/* ------------------------------------------------------------
+   23. QUALITY STATES
+   ------------------------------------------------------------ */
+
+.aa-quality-good {
+    color: var(--aa-success);
+}
+
+.aa-quality-warning {
+    color: var(--aa-warning);
+}
+
+.aa-quality-danger {
+    color: var(--aa-danger);
+}
+
+.aa-quality-bar {
+    width: 100%;
+    height: 6px;
+
+    overflow: hidden;
+
+    border-radius: 999px;
+    background: #1a2028;
+}
+
+.aa-quality-fill {
+    height: 100%;
+
+    border-radius: inherit;
+    background: var(--aa-success);
+}
+
+
+/* ------------------------------------------------------------
+   24. REPORT
+   ------------------------------------------------------------ */
+
+.aa-report-shell {
+    padding: 1.4rem;
+
+    border: 1px solid var(--aa-border-soft);
+    border-radius: var(--aa-radius-md);
+
+    background: var(--aa-surface-soft);
+}
+
+.aa-report-meta {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+
+    border-bottom: 1px solid var(--aa-border-soft);
+}
+
+.aa-report-meta-item {
+    color: var(--aa-text-muted);
+
+    font-size: 0.73rem;
+}
+
+
+/* ------------------------------------------------------------
+   25. DIVIDERS
+   ------------------------------------------------------------ */
+
+hr {
+    border: 0;
+    border-top: 1px solid var(--aa-border-soft);
+
+    margin: 1.8rem 0;
+}
+
+
+/* ------------------------------------------------------------
+   26. SPINNER
+   ------------------------------------------------------------ */
+
+[data-testid="stSpinner"] {
+    color: var(--aa-text-secondary);
+}
+
+
+/* ------------------------------------------------------------
+   27. SCROLLBAR
+   ------------------------------------------------------------ */
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: #2b323c;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #38414d;
+}
+
+
+/* ------------------------------------------------------------
+   28. HIDE STREAMLIT CHROME
+   ------------------------------------------------------------ */
+
+#MainMenu {
+    visibility: hidden;
+}
+
+footer {
+    visibility: hidden;
+}
+
+[data-testid="stToolbar"] {
+    opacity: 0.25;
+    transition: opacity 150ms ease;
+}
+
+[data-testid="stToolbar"]:hover {
+    opacity: 1;
+}
+
+
+/* ------------------------------------------------------------
+   29. RESPONSIVE
+   ------------------------------------------------------------ */
+
+@media (max-width: 1000px) {
+
+    .aa-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    [data-testid="stMainBlockContainer"] {
+        padding-left: 1.2rem;
+        padding-right: 1.2rem;
+    }
+}
+
+
+@media (max-width: 640px) {
+
+    .aa-kpi-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .aa-dataset-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .aa-hero {
+        margin-top: 2.5rem;
+    }
+
+    .aa-page-title {
+        font-size: 1.75rem;
+    }
+}

@@ -1,2143 +1,1018 @@
 # ui/streamlit_app.py
+from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
+from html import escape
+
+import pandas as pd
+import streamlit as st
 
 
-# ==========================================================
-# PROJECT ROOT
-# ==========================================================
+# ============================================================
+# PROJECT PATH
+# ============================================================
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-# ==========================================================
-# IMPORTS
-# ==========================================================
+# ============================================================
+# PROJECT IMPORTS
+# ============================================================
 
-import pandas as pd
-import streamlit as st
-
-from src.agents.graph import build_graph
-from src.agents.conversation_graph import (
+from src.agents.graph import (
+    build_graph,
     build_conversation_graph,
 )
 
+from ui.components.overview import render_overview
+from ui.components.quality import render_quality
+from ui.components.explore import render_explore
+from ui.components.analyst import render_analyst
+from ui.components.report import render_report
+from ui.utils.html import render_html
 
-# ==========================================================
-# PAGE CONFIGURATION
-# ==========================================================
+
+# ============================================================
+# STREAMLIT CONFIGURATION
+# ============================================================
 
 st.set_page_config(
     page_title="Agentic Analytics Engine",
-    page_icon="📊",
+    page_icon="◈",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 
-# ==========================================================
+# ============================================================
+# PATHS
+# ============================================================
+
+UPLOAD_DIRECTORY = (
+    PROJECT_ROOT
+    / "data"
+    / "uploads"
+)
+
+CSS_PATH = (
+    PROJECT_ROOT
+    / "ui"
+    / "styles"
+    / "app.css"
+)
+
+UPLOAD_DIRECTORY.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+
+# ============================================================
+# CSS
+# ============================================================
+
+def load_css() -> None:
+    """
+    Load the application stylesheet.
+    """
+
+    if not CSS_PATH.exists():
+        return
+
+    try:
+        css = CSS_PATH.read_text(
+            encoding="utf-8"
+        )
+
+        st.markdown(
+            f"<style>{css}</style>",
+            unsafe_allow_html=True,
+        )
+
+    except OSError:
+        pass
+
+
+load_css()
+
+
+# ============================================================
+# GRAPH INITIALISATION
+# ============================================================
+
+@st.cache_resource
+def get_phase1_graph():
+    """
+    Build the autonomous analytics graph once per
+    Streamlit process.
+    """
+
+    return build_graph()
+
+
+@st.cache_resource
+def get_conversation_graph():
+    """
+    Build the conversational analytics graph once per
+    Streamlit process.
+    """
+
+    return build_conversation_graph()
+
+
+phase1_graph = get_phase1_graph()
+
+conversation_graph = (
+    get_conversation_graph()
+)
+
+
+# ============================================================
 # SESSION STATE
-# ==========================================================
+# ============================================================
 
-if "analysis_result" not in st.session_state:
-    st.session_state["analysis_result"] = None
-
-if "analysed_dataset" not in st.session_state:
-    st.session_state["analysed_dataset"] = None
-
-if "chat_messages" not in st.session_state:
-    st.session_state["chat_messages"] = []
-
-
-# ==========================================================
-# HELPER FUNCTIONS
-# ==========================================================
-
-def reset_analysis_state() -> None:
+def initialise_session_state() -> None:
     """
-    Clear analysis and conversational state.
+    Initialise application-level session state.
     """
 
-    st.session_state["analysis_result"] = None
-    st.session_state["analysed_dataset"] = None
-    st.session_state["chat_messages"] = []
+    defaults = {
+        "analytics_state":
+            None,
 
+        "dataset_name":
+            None,
 
-def reset_chat() -> None:
-    """
-    Clear only conversational history.
-    """
+        "dataset_path":
+            None,
 
-    st.session_state["chat_messages"] = []
+        "active_page":
+            "Overview",
 
+        "analysis_running":
+            False,
 
-def render_answer_details(
-    metadata: dict,
-) -> None:
-    """
-    Render evidence, key points, cautions, and optional
-    LLM diagnostics for a conversational answer.
-    """
+        "analysis_complete":
+            False,
 
-    if not isinstance(metadata, dict):
-        return
+        "analysis_error":
+            None,
 
-    evidence_tools = metadata.get(
-        "evidence_tools",
-        [],
-    )
+        "analyst_messages":
+            [],
 
-    key_points = metadata.get(
-        "key_points",
-        [],
-    )
-
-    cautions = metadata.get(
-        "cautions",
-        [],
-    )
-
-    llm_used = metadata.get(
-        "llm_used"
-    )
-
-    llm_error = metadata.get(
-        "llm_error"
-    )
-
-    if not (
-        evidence_tools
-        or key_points
-        or cautions
-        or llm_error
-    ):
-        return
-
-    with st.expander(
-        "Evidence and details"
-    ):
-
-        if evidence_tools:
-
-            st.markdown(
-                "**Evidence tools**"
-            )
-
-            for tool in evidence_tools:
-                st.write(f"• {tool}")
-
-        if key_points:
-
-            st.markdown(
-                "**Key points**"
-            )
-
-            for point in key_points:
-                st.write(f"• {point}")
-
-        if cautions:
-
-            st.markdown(
-                "**Cautions**"
-            )
-
-            for caution in cautions:
-                st.warning(str(caution))
-
-        if llm_used is not None:
-
-            if llm_used:
-                st.caption(
-                    "LLM interpretation used."
-                )
-            else:
-                st.caption(
-                    "Deterministic fallback answer used."
-                )
-
-        if llm_error:
-
-            with st.expander(
-                "LLM diagnostic"
-            ):
-                st.code(str(llm_error))
-
-
-def build_conversation_state(
-    phase_one_state: dict,
-    question: str,
-) -> dict:
-    """
-    Build the minimum AgentState required by the
-    conversational analytics graph.
-    """
-
-    conversation_state = {
-        "user_question":
-            question,
-
-        "semantic_analysis":
-            phase_one_state.get(
-                "semantic_analysis",
-                {},
-            ),
-
-        "identifier_columns":
-            phase_one_state.get(
-                "identifier_columns",
-                [],
-            ),
-
-        "target_candidates":
-            phase_one_state.get(
-                "target_candidates",
-                [],
-            ),
-
-        "feature_columns":
-            phase_one_state.get(
-                "feature_columns",
-                [],
-            ),
+        "analyst_pending_question":
+            None,
     }
 
-    original_dataframe = phase_one_state.get(
-        "dataframe"
+    for key, value in defaults.items():
+
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
+initialise_session_state()
+
+
+# ============================================================
+# HELPERS
+# ============================================================
+
+def get_analytics_state() -> dict[str, Any] | None:
+
+    value = st.session_state.get(
+        "analytics_state"
     )
 
-    cleaned_dataframe = phase_one_state.get(
+    if isinstance(value, dict):
+        return value
+
+    return None
+
+
+def get_active_dataframe() -> pd.DataFrame | None:
+
+    state = get_analytics_state()
+
+    if not state:
+        return None
+
+    cleaned = state.get(
         "cleaned_dataframe"
     )
 
-    if original_dataframe is not None:
-        conversation_state[
-            "dataframe"
-        ] = original_dataframe
+    if isinstance(
+        cleaned,
+        pd.DataFrame,
+    ):
+        return cleaned
 
-    if cleaned_dataframe is not None:
-        conversation_state[
-            "cleaned_dataframe"
-        ] = cleaned_dataframe
+    dataframe = state.get(
+        "dataframe"
+    )
 
-    return conversation_state
+    if isinstance(
+        dataframe,
+        pd.DataFrame,
+    ):
+        return dataframe
 
-
-# ==========================================================
-# APPLICATION HEADER
-# ==========================================================
-
-st.title(
-    "📊 Agentic Analytics Engine"
-)
-
-st.write(
-    "Upload a CSV dataset and let the analytics engine "
-    "automatically inspect, clean, analyse, visualise, "
-    "generate AI-powered insights, and answer questions "
-    "about your data."
-)
-
-st.divider()
+    return None
 
 
-# ==========================================================
-# FILE UPLOAD
-# ==========================================================
+def reset_analysis() -> None:
+    """
+    Clear the current analytical session.
+    """
 
-st.subheader(
-    "Upload Dataset"
-)
+    st.session_state[
+        "analytics_state"
+    ] = None
 
-uploaded_file = st.file_uploader(
-    "Choose a CSV file",
-    type=["csv"],
-)
+    st.session_state[
+        "dataset_name"
+    ] = None
+
+    st.session_state[
+        "dataset_path"
+    ] = None
+
+    st.session_state[
+        "analysis_complete"
+    ] = False
+
+    st.session_state[
+        "analysis_running"
+    ] = False
+
+    st.session_state[
+        "analysis_error"
+    ] = None
+
+    st.session_state[
+        "active_page"
+    ] = "Overview"
+
+    st.session_state[
+        "analyst_messages"
+    ] = []
+
+    st.session_state[
+        "analyst_pending_question"
+    ] = None
 
 
-# ==========================================================
-# HANDLE UPLOADED DATASET
-# ==========================================================
+def reset_conversation() -> None:
 
-if uploaded_file is not None:
+    st.session_state[
+        "analyst_messages"
+    ] = []
 
-    # ------------------------------------------------------
-    # READ CSV
-    # ------------------------------------------------------
+    st.session_state[
+        "analyst_pending_question"
+    ] = None
+
+
+def sanitise_filename(
+    filename: str,
+) -> str:
+    """
+    Keep only a safe filename, not a user-supplied path.
+    """
+
+    filename = Path(
+        filename
+    ).name
+
+    safe = "".join(
+        character
+        for character in filename
+        if (
+            character.isalnum()
+            or character
+            in {
+                ".",
+                "_",
+                "-",
+            }
+        )
+    )
+
+    if not safe:
+        safe = "dataset.csv"
+
+    return safe
+
+
+def save_uploaded_file(
+    uploaded_file: Any,
+) -> Path:
+    """
+    Save uploaded CSV to data/uploads.
+    """
+
+    filename = sanitise_filename(
+        uploaded_file.name
+    )
+
+    destination = (
+        UPLOAD_DIRECTORY
+        / filename
+    )
+
+    destination.write_bytes(
+        uploaded_file.getvalue()
+    )
+
+    return destination
+
+
+def preview_uploaded_file(
+    uploaded_file: Any,
+) -> pd.DataFrame | None:
+    """
+    Read a lightweight preview before Phase 1 execution.
+    """
 
     try:
+
+        uploaded_file.seek(0)
+
         dataframe = pd.read_csv(
             uploaded_file
         )
 
-    except Exception as error:
+        uploaded_file.seek(0)
 
-        st.error(
-            f"Could not read the CSV file: {error}"
-        )
+        return dataframe
 
-        st.stop()
-
-    # ------------------------------------------------------
-    # VALIDATE DATASET
-    # ------------------------------------------------------
-
-    if dataframe.empty:
-
-        st.error(
-            "The uploaded CSV does not contain any rows."
-        )
-
-        st.stop()
-
-    if dataframe.shape[1] == 0:
-
-        st.error(
-            "The uploaded CSV does not contain any columns."
-        )
-
-        st.stop()
-
-    # ------------------------------------------------------
-    # UPLOAD SUCCESS
-    # ------------------------------------------------------
-
-    st.success(
-        "Dataset uploaded successfully."
-    )
-
-    # ------------------------------------------------------
-    # DATASET INFORMATION
-    # ------------------------------------------------------
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-
-        st.metric(
-            "Rows",
-            dataframe.shape[0],
-        )
-
-    with col2:
-
-        st.metric(
-            "Columns",
-            dataframe.shape[1],
-        )
-
-    with col3:
-
-        st.metric(
-            "Missing Values",
-            int(
-                dataframe
-                .isna()
-                .sum()
-                .sum()
-            ),
-        )
-
-    # ------------------------------------------------------
-    # DATASET PREVIEW
-    # ------------------------------------------------------
-
-    st.subheader(
-        "Dataset Preview"
-    )
-
-    st.dataframe(
-        dataframe.head(20),
-        use_container_width=True,
-    )
-
-    # ======================================================
-    # RUN ANALYSIS
-    # ======================================================
-
-    if st.button(
-        "Run Analysis",
-        type="primary",
-    ):
-
-        # --------------------------------------------------
-        # CREATE UPLOAD DIRECTORY
-        # --------------------------------------------------
-
-        upload_directory = (
-            PROJECT_ROOT
-            / "data"
-            / "uploads"
-        )
-
-        upload_directory.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        # --------------------------------------------------
-        # SAFE FILE NAME
-        # --------------------------------------------------
-
-        safe_filename = Path(
-            uploaded_file.name
-        ).name
-
-        dataset_path = (
-            upload_directory
-            / safe_filename
-        )
-
-        # --------------------------------------------------
-        # SAVE DATASET
-        # --------------------------------------------------
+    except Exception:
 
         try:
+            uploaded_file.seek(0)
+        except Exception:
+            pass
 
-            dataframe.to_csv(
-                dataset_path,
-                index=False,
-            )
+        return None
 
-        except Exception as error:
 
-            st.error(
-                "Could not save the uploaded dataset."
-            )
+def run_analysis(
+    dataset_path: Path,
+    dataset_name: str,
+) -> bool:
+    """
+    Execute Phase 1 exactly when the user requests analysis.
 
-            st.exception(
-                error
-            )
+    The result is persisted in Streamlit session state.
+    """
 
-            st.stop()
+    st.session_state[
+        "analysis_running"
+    ] = True
 
-        # --------------------------------------------------
-        # BUILD PHASE 1 LANGGRAPH
-        # --------------------------------------------------
+    st.session_state[
+        "analysis_error"
+    ] = None
 
-        try:
-            graph = build_graph()
-
-        except Exception as error:
-
-            st.error(
-                "Could not build the LangGraph workflow."
-            )
-
-            st.exception(
-                error
-            )
-
-            st.stop()
-
-        # --------------------------------------------------
-        # INITIAL AGENT STATE
-        # --------------------------------------------------
+    try:
 
         initial_state = {
             "dataset_path":
-                str(dataset_path)
+                str(dataset_path),
+
+            "errors":
+                [],
         }
 
-        # --------------------------------------------------
-        # RUN AGENTIC WORKFLOW
-        # --------------------------------------------------
+        result = phase1_graph.invoke(
+            initial_state
+        )
 
-        with st.spinner(
-            "Running Agentic Analytics workflow..."
+        if not isinstance(
+            result,
+            dict,
         ):
 
-            try:
+            raise RuntimeError(
+                "The analytics graph returned "
+                "an invalid state."
+            )
 
-                final_state = graph.invoke(
-                    initial_state
-                )
+        st.session_state[
+            "analytics_state"
+        ] = result
 
-            except Exception as error:
+        st.session_state[
+            "dataset_name"
+        ] = dataset_name
+
+        st.session_state[
+            "dataset_path"
+        ] = str(dataset_path)
+
+        st.session_state[
+            "analysis_complete"
+        ] = True
+
+        st.session_state[
+            "active_page"
+        ] = "Overview"
+
+        reset_conversation()
+
+        return True
+
+    except Exception as error:
+
+        st.session_state[
+            "analytics_state"
+        ] = None
+
+        st.session_state[
+            "analysis_complete"
+        ] = False
+
+        st.session_state[
+            "analysis_error"
+        ] = str(error)
+
+        return False
+
+    finally:
+
+        st.session_state[
+            "analysis_running"
+        ] = False
+
+
+# ============================================================
+# BRAND
+# ============================================================
+
+def render_brand() -> None:
+
+    render_html(
+        """
+        <div class="aa-brand">
+
+            <div class="aa-brand-mark">
+                ◈
+            </div>
+
+            <div>
+
+                <div class="aa-brand-name">
+                    Agentic Analytics
+                </div>
+
+                <div class="aa-brand-subtitle">
+                    Autonomous data intelligence
+                </div>
+
+            </div>
+
+        </div>
+        """
+    )
+
+
+# ============================================================
+# LANDING PAGE
+# ============================================================
+
+def render_landing_page() -> None:
+
+    render_brand()
+
+    render_html(
+        """
+        <div class="aa-hero">
+
+            <div class="aa-eyebrow">
+                AGENTIC ANALYTICS ENGINE
+            </div>
+
+            <div class="aa-hero-title">
+                From raw data to
+                analytical intelligence.
+            </div>
+
+            <div class="aa-hero-description">
+                Upload a dataset and let the autonomous
+                workflow profile, validate, clean, understand,
+                explore and interpret it. Then investigate the
+                results through conversational analytics.
+            </div>
+
+        </div>
+        """
+    )
+
+    left, right = st.columns(
+        [1.15, 0.85],
+        gap="large",
+    )
+
+    with left:
+
+        render_html(
+            """
+            <div class="aa-section">
+
+                <div class="aa-section-label">
+                    New analysis
+                </div>
+
+                <div class="aa-section-description">
+                    Start with a CSV dataset.
+                </div>
+
+            </div>
+            """
+    )
+
+        uploaded_file = st.file_uploader(
+            "Upload CSV dataset",
+            type=["csv"],
+            key="dataset_uploader",
+            help=(
+                "Upload a CSV file to start "
+                "the autonomous analysis workflow."
+            ),
+        )
+
+        if uploaded_file is not None:
+
+            preview = preview_uploaded_file(
+                uploaded_file
+            )
+
+            if preview is None:
 
                 st.error(
-                    "The analytics workflow failed."
+                    "The uploaded file could not "
+                    "be read as CSV."
                 )
 
-                st.exception(
-                    error
+            else:
+
+                rows, columns = preview.shape
+
+                numeric = len(
+                    preview.select_dtypes(
+                        include="number"
+                    ).columns
                 )
 
-                st.stop()
-
-        # --------------------------------------------------
-        # STORE RESULT
-        # --------------------------------------------------
-
-        st.session_state[
-            "analysis_result"
-        ] = final_state
-
-        st.session_state[
-            "analysed_dataset"
-        ] = safe_filename
-
-        # New analysis = new conversation.
-        reset_chat()
-
-        # --------------------------------------------------
-        # SUCCESS
-        # --------------------------------------------------
-
-        st.success(
-            "Analysis completed successfully!"
-        )
-
-
-# ==========================================================
-# ANALYSIS RESULTS
-# ==========================================================
-
-result = st.session_state.get(
-    "analysis_result"
-)
-
-if result:
-
-    st.divider()
-
-    st.header(
-        "Analysis Results"
-    )
-
-    analysed_dataset = st.session_state.get(
-        "analysed_dataset"
-    ) or "Dataset"
-
-    st.caption(
-        f"Analysed dataset: {analysed_dataset}"
-    )
-
-    # ======================================================
-    # EXTRACT WORKFLOW RESULTS
-    # ======================================================
-
-    profile = result.get(
-        "profile",
-        {},
-    )
-
-    quality_report = result.get(
-        "quality_report",
-        {},
-    )
-
-    cleaning_report = result.get(
-        "cleaning_report",
-        {},
-    )
-
-    cleaning_validation = result.get(
-        "cleaning_validation",
-        {},
-    )
-
-    analysis_results = result.get(
-        "analysis_results",
-        {},
-    )
-
-    semantic_analysis = result.get(
-        "semantic_analysis",
-        {},
-    )
-
-    execution_report = result.get(
-        "execution_report",
-        {},
-    )
-
-    target_analysis = result.get(
-        "target_analysis",
-        {},
-    )
-
-    insights = result.get(
-        "insights",
-        {},
-    )
-
-    chart_paths = result.get(
-        "chart_paths",
-        [],
-    )
-
-    final_report = result.get(
-        "final_report",
-        "",
-    )
-
-    report_path = result.get(
-        "report_path",
-        "",
-    )
-
-    numerical_summary = result.get(
-        "numerical_summary",
-        {},
-    )
-
-    categorical_summary = result.get(
-        "categorical_summary",
-        {},
-    )
-
-    correlation_matrix = result.get(
-        "correlation_matrix",
-        {},
-    )
-
-    # ======================================================
-    # TOP-LEVEL METRICS
-    # ======================================================
-
-    st.subheader(
-        "Dataset Overview"
-    )
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-
-        st.metric(
-            "Original Rows",
-            profile.get(
-                "rows",
-                0,
-            ),
-        )
-
-    with col2:
-
-        st.metric(
-            "Columns",
-            profile.get(
-                "columns",
-                0,
-            ),
-        )
-
-    with col3:
-
-        st.metric(
-            "Quality Issues",
-            quality_report.get(
-                "total_issues",
-                0,
-            ),
-        )
-
-    with col4:
-
-        st.metric(
-            "Rows After Cleaning",
-            cleaning_report.get(
-                "cleaned_rows",
-                profile.get(
-                    "rows",
-                    0,
-                ),
-            ),
-        )
-
-    # ======================================================
-    # SEMANTIC SUMMARY
-    # ======================================================
-
-    st.subheader(
-        "Semantic Analysis"
-    )
-
-    identifiers = result.get(
-        "identifier_columns",
-        semantic_analysis.get(
-            "identifier_columns",
-            [],
-        ),
-    )
-
-    targets = result.get(
-        "target_candidates",
-        semantic_analysis.get(
-            "target_candidates",
-            [],
-        ),
-    )
-
-    features = result.get(
-        "feature_columns",
-        semantic_analysis.get(
-            "feature_columns",
-            [],
-        ),
-    )
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-
-        st.markdown(
-            "**Identifier Columns**"
-        )
-
-        if identifiers:
-
-            for column in identifiers:
-                st.write(
-                    f"• {column}"
+                missing = int(
+                    preview.isna()
+                    .sum()
+                    .sum()
                 )
 
-        else:
+                render_html(
+                    f"""
+                    <div class="aa-kpi-grid">
 
-            st.write(
-                "None detected"
-            )
+                        <div class="aa-kpi">
+                            <div class="aa-kpi-label">
+                                Rows
+                            </div>
+                            <div class="aa-kpi-value">
+                                {rows:,}
+                            </div>
+                        </div>
 
-    with col2:
+                        <div class="aa-kpi">
+                            <div class="aa-kpi-label">
+                                Columns
+                            </div>
+                            <div class="aa-kpi-value">
+                                {columns:,}
+                            </div>
+                        </div>
 
-        st.markdown(
-            "**Feature Columns**"
-        )
+                        <div class="aa-kpi">
+                            <div class="aa-kpi-label">
+                                Numeric
+                            </div>
+                            <div class="aa-kpi-value">
+                                {numeric:,}
+                            </div>
+                        </div>
 
-        if features:
+                        <div class="aa-kpi">
+                            <div class="aa-kpi-label">
+                                Missing
+                            </div>
+                            <div class="aa-kpi-value">
+                                {missing:,}
+                            </div>
+                        </div>
 
-            for column in features:
-                st.write(
-                    f"• {column}"
-                )
-
-        else:
-
-            st.write(
-                "None detected"
-            )
-
-    with col3:
-
-        st.markdown(
-            "**Target Candidates**"
-        )
-
-        if targets:
-
-            for column in targets:
-                st.write(
-                    f"• {column}"
-                )
-
-        else:
-
-            st.write(
-                "None detected"
-            )
-
-    # ======================================================
-    # EDA EXECUTION SUMMARY
-    # ======================================================
-
-    st.subheader(
-        "EDA Execution"
+                    </div>
+                    """
     )
 
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-
-        st.metric(
-            "Planned Tasks",
-            execution_report.get(
-                "total_planned_tasks",
-                0,
-            ),
-        )
-
-    with col2:
-
-        st.metric(
-            "Executed",
-            execution_report.get(
-                "executed_tasks",
-                0,
-            ),
-        )
-
-    with col3:
-
-        st.metric(
-            "Charts",
-            execution_report.get(
-                "charts_generated",
-                0,
-            ),
-        )
-
-    with col4:
-
-        failed_tasks = execution_report.get(
-            "failed_tasks",
-            0,
-        )
-
-        st.metric(
-            "Failed",
-            failed_tasks,
-        )
-
-    if failed_tasks:
-
-        st.warning(
-            f"{failed_tasks} EDA task(s) failed. "
-            "Check the workflow output for details."
-        )
-
-    # ======================================================
-    # RESULTS TABS
-    # ======================================================
-
-    (
-        overview_tab,
-        quality_tab,
-        stats_tab,
-        charts_tab,
-        insights_tab,
-        report_tab,
-    ) = st.tabs(
-        [
-            "Overview",
-            "Data Quality",
-            "Statistics",
-            "Visualizations",
-            "AI Insights",
-            "Report",
-        ]
-    )
-
-    # ======================================================
-    # OVERVIEW TAB
-    # ======================================================
-
-    with overview_tab:
-
-        st.subheader(
-            "Workflow Overview"
-        )
-
-        st.write(
-            "The Agentic Analytics workflow completed "
-            "for the uploaded dataset."
-        )
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-
-            st.metric(
-                "Rows Analysed",
-                analysis_results.get(
-                    "rows_analyzed",
-                    0,
-                ),
-            )
-
-        with col2:
-
-            st.metric(
-                "EDA Tasks Executed",
-                execution_report.get(
-                    "executed_tasks",
-                    0,
-                ),
-            )
-
-        with col3:
-
-            st.metric(
-                "Charts Generated",
-                execution_report.get(
-                    "charts_generated",
-                    0,
-                ),
-            )
-
-        # --------------------------------------------------
-        # TARGET ANALYSIS
-        # --------------------------------------------------
-
-        st.markdown(
-            "### Target Analysis"
-        )
-
-        if target_analysis:
-
-            for target, information in (
-                target_analysis.items()
-            ):
-
-                st.markdown(
-                    f"#### {target}"
-                )
-
-                if not isinstance(
-                    information,
-                    dict,
+                with st.expander(
+                    "Preview dataset",
+                    expanded=True,
                 ):
 
-                    st.write(
-                        information
+                    st.dataframe(
+                        preview.head(10),
+                        use_container_width=True,
+                        hide_index=True,
                     )
 
-                    continue
-
-                target_type = information.get(
-                    "target_type",
-                    "Unknown",
-                )
-
-                st.write(
-                    f"**Target Type:** {target_type}"
-                )
-
-                distribution = information.get(
-                    "distribution"
-                )
-
-                if distribution:
+                if st.button(
+                    "Run autonomous analysis",
+                    type="primary",
+                    use_container_width=True,
+                    disabled=st.session_state[
+                        "analysis_running"
+                    ],
+                ):
 
                     try:
 
-                        distribution_df = pd.DataFrame(
-                            {
-                                "Category":
-                                    list(
-                                        distribution.keys()
-                                    ),
-
-                                "Count":
-                                    list(
-                                        distribution.values()
-                                    ),
-                            }
+                        dataset_path = (
+                            save_uploaded_file(
+                                uploaded_file
+                            )
                         )
 
-                        st.dataframe(
-                            distribution_df,
-                            use_container_width=True,
-                            hide_index=True,
-                        )
+                    except OSError as error:
 
-                    except Exception:
-
-                        st.json(
-                            distribution
-                        )
-
-        else:
-
-            st.info(
-                "No target candidate was analysed."
-            )
-
-    # ======================================================
-    # DATA QUALITY TAB
-    # ======================================================
-
-    with quality_tab:
-
-        st.subheader(
-            "Data Quality Analysis"
-        )
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-
-            st.metric(
-                "Quality Issues",
-                quality_report.get(
-                    "total_issues",
-                    0,
-                ),
-            )
-
-        with col2:
-
-            st.metric(
-                "Rows Removed",
-                cleaning_report.get(
-                    "rows_removed",
-                    0,
-                ),
-            )
-
-        with col3:
-
-            st.metric(
-                "Cleaned Rows",
-                cleaning_report.get(
-                    "cleaned_rows",
-                    profile.get(
-                        "rows",
-                        0,
-                    ),
-                ),
-            )
-
-        # --------------------------------------------------
-        # DETECTED ISSUES
-        # --------------------------------------------------
-
-        st.markdown(
-            "### Detected Issues"
-        )
-
-        issues = quality_report.get(
-            "issues",
-            [],
-        )
-
-        if issues:
-
-            for issue in issues:
-
-                if isinstance(
-                    issue,
-                    dict,
-                ):
-
-                    column = issue.get(
-                        "column"
-                    )
-
-                    issue_type = issue.get(
-                        "issue",
-                        issue.get(
-                            "type",
-                            "Unknown issue",
-                        ),
-                    )
-
-                    count = issue.get(
-                        "count",
-                        "N/A",
-                    )
-
-                    severity = issue.get(
-                        "severity"
-                    )
-
-                    if column:
-
-                        message = (
-                            f"{column}: "
-                            f"{issue_type} "
-                            f"(count: {count})"
+                        st.error(
+                            "The uploaded dataset "
+                            f"could not be saved: {error}"
                         )
 
                     else:
 
-                        message = (
-                            f"{issue_type} "
-                            f"(count: {count})"
-                        )
-
-                    if severity:
-
-                        message += (
-                            f" | severity: "
-                            f"{severity}"
-                        )
-
-                    st.warning(
-                        message
-                    )
-
-                else:
-
-                    st.warning(
-                        str(issue)
-                    )
-
-        else:
-
-            st.success(
-                "No data quality issues detected."
-            )
-
-        # --------------------------------------------------
-        # CLEANING REPORT
-        # --------------------------------------------------
-
-        st.markdown(
-            "### Cleaning Report"
-        )
-
-        if cleaning_report:
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-
-                st.metric(
-                    "Original Rows",
-                    cleaning_report.get(
-                        "original_rows",
-                        profile.get(
-                            "rows",
-                            0,
-                        ),
-                    ),
-                )
-
-                st.metric(
-                    "Rows Removed",
-                    cleaning_report.get(
-                        "rows_removed",
-                        0,
-                    ),
-                )
-
-                st.metric(
-                    "Original Missing Values",
-                    cleaning_report.get(
-                        "original_missing_values",
-                        0,
-                    ),
-                )
-
-            with col2:
-
-                st.metric(
-                    "Cleaned Rows",
-                    cleaning_report.get(
-                        "cleaned_rows",
-                        profile.get(
-                            "rows",
-                            0,
-                        ),
-                    ),
-                )
-
-                st.metric(
-                    "Remaining Missing Values",
-                    cleaning_report.get(
-                        "remaining_missing_values",
-                        0,
-                    ),
-                )
-
-                st.metric(
-                    "Remaining Duplicates",
-                    cleaning_report.get(
-                        "remaining_duplicates",
-                        0,
-                    ),
-                )
-
-            with st.expander(
-                "Full Cleaning Report"
-            ):
-
-                st.json(
-                    cleaning_report
-                )
-
-        else:
-
-            st.info(
-                "Automatic cleaning was not required."
-            )
-
-        # --------------------------------------------------
-        # CLEANING VALIDATION
-        # --------------------------------------------------
-
-        st.markdown(
-            "### Cleaning Validation"
-        )
-
-        if cleaning_validation:
-
-            validation_passed = (
-                cleaning_validation.get(
-                    "validation_passed"
-                )
-            )
-
-            if validation_passed is True:
-
-                st.success(
-                    "Cleaning validation passed."
-                )
-
-            elif validation_passed is False:
-
-                st.error(
-                    "Cleaning validation failed."
-                )
-
-            st.json(
-                cleaning_validation
-            )
-
-        else:
-
-            st.info(
-                "No cleaning validation was required."
-            )
-
-    # ======================================================
-    # STATISTICS TAB
-    # ======================================================
-
-    with stats_tab:
-
-        st.subheader(
-            "Statistical Analysis"
-        )
-
-        # --------------------------------------------------
-        # NUMERICAL SUMMARY
-        # --------------------------------------------------
-
-        st.markdown(
-            "### Numerical Summary"
-        )
-
-        if numerical_summary:
-
-            try:
-
-                numerical_df = pd.DataFrame(
-                    numerical_summary
-                ).T
-
-                st.dataframe(
-                    numerical_df,
-                    use_container_width=True,
-                )
-
-            except Exception as error:
-
-                st.warning(
-                    "Could not convert the numerical "
-                    f"summary into a table: {error}"
-                )
-
-                st.json(
-                    numerical_summary
-                )
-
-        else:
-
-            st.info(
-                "No numerical columns were analysed."
-            )
-
-        # --------------------------------------------------
-        # CATEGORICAL SUMMARY
-        # --------------------------------------------------
-
-        st.markdown(
-            "### Categorical Summary"
-        )
-
-        if categorical_summary:
-
-            categorical_rows = []
-
-            for column, information in (
-                categorical_summary.items()
-            ):
-
-                if not isinstance(
-                    information,
-                    dict,
-                ):
-                    continue
-
-                categorical_rows.append(
-                    {
-                        "Column":
-                            column,
-
-                        "Unique Values":
-                            information.get(
-                                "unique_values"
-                            ),
-
-                        "Most Frequent":
-                            information.get(
-                                "most_frequent"
-                            ),
-
-                        "Top Values":
-                            str(
-                                information.get(
-                                    "top_values",
-                                    {},
-                                )
-                            ),
-                    }
-                )
-
-            if categorical_rows:
-
-                categorical_df = pd.DataFrame(
-                    categorical_rows
-                )
-
-                st.dataframe(
-                    categorical_df,
-                    use_container_width=True,
-                    hide_index=True,
-                )
-
-            else:
-
-                st.json(
-                    categorical_summary
-                )
-
-        else:
-
-            st.info(
-                "No categorical columns were analysed."
-            )
-
-        # --------------------------------------------------
-        # CORRELATION MATRIX
-        # --------------------------------------------------
-
-        st.markdown(
-            "### Correlation Matrix"
-        )
-
-        if correlation_matrix:
-
-            try:
-
-                correlation_df = pd.DataFrame(
-                    correlation_matrix
-                )
-
-                st.dataframe(
-                    correlation_df.round(3),
-                    use_container_width=True,
-                )
-
-            except Exception as error:
-
-                st.warning(
-                    "Could not convert the correlation "
-                    f"matrix into a table: {error}"
-                )
-
-                st.json(
-                    correlation_matrix
-                )
-
-        else:
-
-            st.info(
-                "A correlation matrix could not "
-                "be generated."
-            )
-
-    # ======================================================
-    # VISUALIZATIONS TAB
-    # ======================================================
-
-    with charts_tab:
-
-        st.subheader(
-            "Generated Visualizations"
-        )
-
-        if chart_paths:
-
-            st.write(
-                f"{len(chart_paths)} visualizations "
-                "were generated automatically."
-            )
-
-            valid_charts = []
-            missing_charts = []
-
-            for chart_path in chart_paths:
-
-                path = Path(
-                    chart_path
-                )
-
-                if not path.is_absolute():
-
-                    path = (
-                        PROJECT_ROOT
-                        / path
-                    )
-
-                if path.exists():
-
-                    valid_charts.append(
-                        path
-                    )
-
-                else:
-
-                    missing_charts.append(
-                        str(chart_path)
-                    )
-
-            if valid_charts:
-
-                for index in range(
-                    0,
-                    len(valid_charts),
-                    2,
-                ):
-
-                    chart_columns = st.columns(
-                        2
-                    )
-
-                    left_chart = valid_charts[
-                        index
-                    ]
-
-                    with chart_columns[0]:
-
-                        left_title = (
-                            left_chart
-                            .stem
-                            .replace(
-                                "_",
-                                " ",
-                            )
-                            .title()
-                        )
-
-                        st.markdown(
-                            f"#### {left_title}"
-                        )
-
-                        st.image(
-                            str(left_chart),
-                            use_container_width=True,
-                        )
-
-                    if (
-                        index + 1
-                        < len(valid_charts)
-                    ):
-
-                        right_chart = valid_charts[
-                            index + 1
-                        ]
-
-                        with chart_columns[1]:
-
-                            right_title = (
-                                right_chart
-                                .stem
-                                .replace(
-                                    "_",
-                                    " ",
-                                )
-                                .title()
+                        with st.spinner(
+                            "Agents are analysing "
+                            "the dataset..."
+                        ):
+
+                            success = run_analysis(
+                                dataset_path=dataset_path,
+                                dataset_name=(
+                                    uploaded_file.name
+                                ),
                             )
 
-                            st.markdown(
-                                f"#### {right_title}"
-                            )
+                        if success:
 
-                            st.image(
-                                str(right_chart),
-                                use_container_width=True,
-                            )
+                            st.rerun()
 
-            else:
+    with right:
 
-                st.error(
-                    "The workflow reported generated "
-                    "charts, but none of the files "
-                    "could be found."
-                )
+        render_html(
+            """
+            <div class="aa-section">
 
-            if missing_charts:
+                <div class="aa-section-label">
+                    Workflow
+                </div>
 
-                with st.expander(
-                    "Missing Chart Files"
-                ):
+                <div class="aa-section-description">
+                    One dataset. Multiple specialised agents.
+                </div>
 
-                    for missing_chart in (
-                        missing_charts
-                    ):
+            </div>
 
-                        st.code(
-                            missing_chart
-                        )
+            <div class="aa-panel">
 
-        else:
+                <div class="aa-panel-title">
+                    01 · Understand
+                </div>
 
-            st.info(
-                "No visualizations were generated "
-                "for this dataset."
-            )
+                <div class="aa-panel-description">
+                    Profile schema, data types, structure
+                    and dataset quality.
+                </div>
 
-    # ======================================================
-    # AI INSIGHTS TAB
-    # ======================================================
+            </div>
 
-    with insights_tab:
+            <div class="aa-panel">
 
-        st.subheader(
-            "AI-Generated Insights"
-        )
+                <div class="aa-panel-title">
+                    02 · Prepare
+                </div>
 
-        if insights and isinstance(
-            insights,
-            dict,
-        ):
+                <div class="aa-panel-description">
+                    Detect quality problems, clean data and
+                    validate transformations.
+                </div>
 
-            # ----------------------------------------------
-            # OVERALL SUMMARY
-            # ----------------------------------------------
+            </div>
 
-            st.markdown(
-                "### Overall Summary"
-            )
+            <div class="aa-panel">
 
-            summary = insights.get(
-                "summary",
-                "",
-            )
+                <div class="aa-panel-title">
+                    03 · Investigate
+                </div>
 
-            if summary:
+                <div class="aa-panel-description">
+                    Understand semantics, plan EDA and
+                    execute analytical tools.
+                </div>
 
-                st.write(
-                    summary
-                )
+            </div>
 
-            else:
+            <div class="aa-panel">
 
-                st.info(
-                    "No overall summary was generated."
-                )
+                <div class="aa-panel-title">
+                    04 · Explain
+                </div>
 
-            # ----------------------------------------------
-            # KEY INSIGHTS
-            # ----------------------------------------------
+                <div class="aa-panel-description">
+                    Generate insights, reports and
+                    evidence-grounded conversational answers.
+                </div>
 
-            st.markdown(
-                "### Key Insights"
-            )
-
-            key_insights = insights.get(
-                "key_insights",
-                [],
-            )
-
-            if key_insights:
-
-                for index, insight in enumerate(
-                    key_insights,
-                    start=1,
-                ):
-
-                    if not isinstance(
-                        insight,
-                        dict,
-                    ):
-
-                        st.write(
-                            insight
-                        )
-
-                        continue
-
-                    title = insight.get(
-                        "title",
-                        f"Insight {index}",
-                    )
-
-                    with st.expander(
-                        f"{index}. {title}",
-                        expanded=True,
-                    ):
-
-                        insight_text = insight.get(
-                            "insight",
-                            "",
-                        )
-
-                        if insight_text:
-
-                            st.write(
-                                insight_text
-                            )
-
-                        evidence = insight.get(
-                            "evidence"
-                        )
-
-                        if evidence:
-
-                            st.markdown(
-                                f"**Evidence:** "
-                                f"{evidence}"
-                            )
-
-                        importance = insight.get(
-                            "importance"
-                        )
-
-                        if importance:
-
-                            st.markdown(
-                                f"**Importance:** "
-                                f"{importance}"
-                            )
-
-            else:
-
-                st.info(
-                    "No key insights were generated."
-                )
-
-            # ----------------------------------------------
-            # TARGET INSIGHTS
-            # ----------------------------------------------
-
-            st.markdown(
-                "### Target Insights"
-            )
-
-            target_insights = insights.get(
-                "target_insights",
-                [],
-            )
-
-            if target_insights:
-
-                for target_insight in (
-                    target_insights
-                ):
-
-                    if not isinstance(
-                        target_insight,
-                        dict,
-                    ):
-
-                        st.write(
-                            target_insight
-                        )
-
-                        continue
-
-                    target = target_insight.get(
-                        "target",
-                        "Target",
-                    )
-
-                    st.markdown(
-                        f"#### {target}"
-                    )
-
-                    target_text = (
-                        target_insight.get(
-                            "insight",
-                            "",
-                        )
-                    )
-
-                    if target_text:
-
-                        st.write(
-                            target_text
-                        )
-
-                    evidence = (
-                        target_insight.get(
-                            "evidence"
-                        )
-                    )
-
-                    if evidence:
-
-                        st.caption(
-                            f"Evidence: {evidence}"
-                        )
-
-            else:
-
-                st.info(
-                    "No target insights were generated."
-                )
-
-            # ----------------------------------------------
-            # DATA CAUTIONS
-            # ----------------------------------------------
-
-            st.markdown(
-                "### Data Cautions"
-            )
-
-            data_cautions = insights.get(
-                "data_cautions",
-                [],
-            )
-
-            if data_cautions:
-
-                for caution in data_cautions:
-
-                    st.warning(
-                        str(caution)
-                    )
-
-            else:
-
-                st.success(
-                    "No additional data cautions "
-                    "were generated."
-                )
-
-        else:
-
-            st.warning(
-                "No AI insights are available."
-            )
-
-    # ======================================================
-    # REPORT TAB
-    # ======================================================
-
-    with report_tab:
-
-        st.subheader(
-            "Final Analytics Report"
-        )
-
-        if final_report:
-
-            st.success(
-                "Final report generated successfully."
-            )
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-
-                st.metric(
-                    "Report Characters",
-                    len(final_report),
-                )
-
-            with col2:
-
-                st.metric(
-                    "Report Words",
-                    len(
-                        final_report.split()
-                    ),
-                )
-
-            st.markdown(
-                "### Report Preview"
-            )
-
-            with st.container(
-                border=True
-            ):
-
-                st.markdown(
-                    final_report
-                )
-
-            st.download_button(
-                label="Download Markdown Report",
-                data=final_report,
-                file_name="analytics_report.md",
-                mime="text/markdown",
-                type="primary",
-            )
-
-        else:
-
-            st.warning(
-                "No final report is available."
-            )
-
-        if report_path:
-
-            report_file_path = Path(
-                report_path
-            )
-
-            if not report_file_path.is_absolute():
-
-                report_file_path = (
-                    PROJECT_ROOT
-                    / report_file_path
-                )
-
-            st.caption(
-                f"Report saved to: {report_path}"
-            )
-
-            if not report_file_path.exists():
-
-                st.warning(
-                    "The report path exists in the "
-                    "workflow state, but the file "
-                    "could not be found on disk."
-                )
-
-
-    # ======================================================
-    # PHASE 2 — CONVERSATIONAL ANALYTICS
-    # ======================================================
-
-    st.divider()
-
-    chat_header_col, chat_action_col = st.columns(
-        [5, 1]
+            </div>
+            """
     )
 
-    with chat_header_col:
+    analysis_error = (
+        st.session_state.get(
+            "analysis_error"
+        )
+    )
 
-        st.header(
-            "💬 Chat with Your Data"
+    if analysis_error:
+
+        st.error(
+            "The analysis workflow failed."
         )
 
-    with chat_action_col:
+        with st.expander(
+            "Error details"
+        ):
+
+            st.code(
+                analysis_error
+            )
+
+
+# ============================================================
+# SIDEBAR
+# ============================================================
+
+PAGES = [
+    "Overview",
+    "Quality",
+    "Explore",
+    "AI Analyst",
+    "Report",
+]
+
+
+def render_sidebar() -> str:
+
+    state = get_analytics_state()
+
+    dataframe = get_active_dataframe()
+
+    with st.sidebar:
+
+        render_brand()
+
+        st.markdown("---")
+
+        st.caption(
+            "WORKSPACE"
+        )
+
+        current_page = (
+            st.session_state.get(
+                "active_page",
+                "Overview",
+            )
+        )
+
+        if current_page not in PAGES:
+            current_page = "Overview"
+
+        selected_page = st.radio(
+            "Workspace navigation",
+            options=PAGES,
+            index=PAGES.index(
+                current_page
+            ),
+            label_visibility="collapsed",
+            key="workspace_navigation",
+        )
+
+        st.session_state[
+            "active_page"
+        ] = selected_page
+
+        st.markdown("---")
+
+        st.caption(
+            "ACTIVE DATASET"
+        )
+
+        dataset_name = (
+            st.session_state.get(
+                "dataset_name"
+            )
+            or "Dataset"
+        )
+
+        st.markdown(
+            f"**{dataset_name}**"
+        )
+
+        if dataframe is not None:
+
+            rows, columns = dataframe.shape
+
+            st.caption(
+                f"{rows:,} rows · "
+                f"{columns:,} columns"
+            )
+
+            missing = int(
+                dataframe.isna()
+                .sum()
+                .sum()
+            )
+
+            st.caption(
+                f"{missing:,} missing values "
+                "in active data"
+            )
+
+        if state:
+
+            errors = state.get(
+                "errors",
+                [],
+            )
+
+            if not isinstance(
+                errors,
+                list,
+            ):
+                errors = []
+
+            if errors:
+
+                st.warning(
+                    f"{len(errors)} workflow "
+                    "issue(s) recorded"
+                )
+
+            else:
+
+                st.success(
+                    "Analysis complete"
+                )
+
+        st.markdown("---")
 
         if st.button(
-            "Clear Chat",
+            "Analyse another dataset",
             use_container_width=True,
         ):
 
-            reset_chat()
+            reset_analysis()
             st.rerun()
 
-    st.write(
-        "Ask natural-language questions about the analysed "
-        "dataset. The engine interprets your question, "
-        "plans the analysis, executes deterministic tools, "
-        "and generates an evidence-grounded answer."
+    return selected_page
+
+
+# ============================================================
+# APPLICATION HEADER
+# ============================================================
+
+def render_application_header() -> None:
+
+    dataset_name = (
+        st.session_state.get(
+            "dataset_name"
+        )
+        or "Dataset"
     )
 
-    st.caption(
-        "The dataset analysis above is reused for each "
-        "question; Phase 1 is not rerun."
+    safe_dataset_name = escape(str(dataset_name))
+
+    render_html(
+        f"""
+        <div class="aa-app-topbar">
+
+            <div>
+
+                <div class="aa-app-context">
+                    ANALYTICS WORKSPACE
+                </div>
+
+                <div class="aa-app-dataset">
+                    {safe_dataset_name}
+                </div>
+
+            </div>
+
+            <div class="aa-status">
+                <span class="aa-status-dot"></span>
+                Analysis ready
+            </div>
+
+        </div>
+        """
     )
 
-    # ------------------------------------------------------
-    # EXAMPLE QUESTIONS
-    # ------------------------------------------------------
 
-    with st.expander(
-        "Example questions"
-    ):
+# ============================================================
+# WORKSPACE ROUTER
+# ============================================================
 
-        st.markdown(
-            """
-- What is the average income?
-- Show me the distribution of tenure.
-- Which factors are associated with churn?
-- Compare income and age.
-- What is the correlation between age and income?
-- How many customers are there?
-- Are there any missing values or duplicates?
-- Give me an overview of this dataset.
-"""
+def render_workspace(
+    page: str,
+) -> None:
+
+    state = get_analytics_state()
+
+    if state is None:
+
+        st.warning(
+            "No analytical state is available."
         )
 
-    # ------------------------------------------------------
-    # CHAT HISTORY
-    # ------------------------------------------------------
+        return
 
-    chat_messages = st.session_state[
-        "chat_messages"
-    ]
+    if page == "Overview":
 
-    if not chat_messages:
-
-        with st.chat_message(
-            "assistant"
-        ):
-
-            st.markdown(
-                "The dataset is ready. Ask me a question "
-                "about its statistics, distributions, "
-                "relationships, quality, or overall structure."
-            )
-
-    for message in chat_messages:
-
-        role = message.get(
-            "role",
-            "assistant",
+        render_overview(
+            state
         )
 
-        content = message.get(
-            "content",
-            "",
+    elif page == "Quality":
+
+        render_quality(
+            state
         )
 
-        with st.chat_message(
-            role
-        ):
+    elif page == "Explore":
 
-            st.markdown(
-                content
-            )
+        render_explore(
+            state
+        )
 
-            if role == "assistant":
+    elif page == "AI Analyst":
 
-                render_answer_details(
-                    message.get(
-                        "metadata",
-                        {},
-                    )
-                )
+        render_analyst(
+            state=state,
+            conversation_graph=(
+                conversation_graph
+            ),
+        )
 
-    # ------------------------------------------------------
-    # USER QUESTION
-    # ------------------------------------------------------
+    elif page == "Report":
 
-    user_question = st.chat_input(
-        "Ask a question about your dataset..."
+        render_report(
+            state
+        )
+
+    else:
+
+        render_overview(
+            state
+        )
+
+
+# ============================================================
+# APPLICATION
+# ============================================================
+
+def main() -> None:
+
+    state = get_analytics_state()
+
+    if state is None:
+
+        render_landing_page()
+
+        return
+
+    page = render_sidebar()
+
+    render_application_header()
+
+    render_workspace(
+        page
     )
 
-    if user_question:
 
-        user_question = user_question.strip()
-
-        if user_question:
-
-            # ----------------------------------------------
-            # SAVE USER MESSAGE
-            # ----------------------------------------------
-
-            st.session_state[
-                "chat_messages"
-            ].append(
-                {
-                    "role":
-                        "user",
-
-                    "content":
-                        user_question,
-                }
-            )
-
-            # ----------------------------------------------
-            # SHOW USER MESSAGE
-            # ----------------------------------------------
-
-            with st.chat_message(
-                "user"
-            ):
-
-                st.markdown(
-                    user_question
-                )
-
-            # ----------------------------------------------
-            # CREATE CONVERSATION STATE
-            # ----------------------------------------------
-
-            conversation_state = (
-                build_conversation_state(
-                    phase_one_state=result,
-                    question=user_question,
-                )
-            )
-
-            # ----------------------------------------------
-            # GENERATE ANSWER
-            # ----------------------------------------------
-
-            with st.chat_message(
-                "assistant"
-            ):
-
-                with st.spinner(
-                    "Analysing your question..."
-                ):
-
-                    try:
-
-                        conversation_graph = (
-                            build_conversation_graph()
-                        )
-
-                        conversation_result = (
-                            conversation_graph.invoke(
-                                conversation_state
-                            )
-                        )
-
-                        query_answer = (
-                            conversation_result.get(
-                                "query_answer",
-                                {},
-                            )
-                        )
-
-                        if not isinstance(
-                            query_answer,
-                            dict,
-                        ):
-
-                            raise RuntimeError(
-                                "The conversation graph "
-                                "returned an invalid answer."
-                            )
-
-                        answer_text = (
-                            query_answer.get(
-                                "answer",
-                                ""
-                            )
-                        )
-
-                        if answer_text is None:
-                            answer_text = ""
-
-                        if not isinstance(
-                            answer_text,
-                            str,
-                        ):
-
-                            answer_text = str(
-                                answer_text
-                            )
-
-                        answer_text = (
-                            answer_text.strip()
-                        )
-
-                        if not answer_text:
-
-                            answer_text = (
-                                "The analytics engine completed "
-                                "the analysis but did not return "
-                                "a readable answer."
-                            )
-
-                        # ----------------------------------
-                        # DISPLAY ANSWER
-                        # ----------------------------------
-
-                        st.markdown(
-                            answer_text
-                        )
-
-                        metadata = {
-                            "evidence_tools":
-                                query_answer.get(
-                                    "evidence_tools",
-                                    [],
-                                ),
-
-                            "key_points":
-                                query_answer.get(
-                                    "key_points",
-                                    [],
-                                ),
-
-                            "cautions":
-                                query_answer.get(
-                                    "cautions",
-                                    [],
-                                ),
-
-                            "llm_used":
-                                query_answer.get(
-                                    "llm_used"
-                                ),
-
-                            "llm_error":
-                                query_answer.get(
-                                    "llm_error"
-                                ),
-                        }
-
-                        render_answer_details(
-                            metadata
-                        )
-
-                        # ----------------------------------
-                        # STORE ASSISTANT MESSAGE
-                        # ----------------------------------
-
-                        st.session_state[
-                            "chat_messages"
-                        ].append(
-                            {
-                                "role":
-                                    "assistant",
-
-                                "content":
-                                    answer_text,
-
-                                "metadata":
-                                    metadata,
-                            }
-                        )
-
-                    except Exception as error:
-
-                        error_message = (
-                            "The conversational analytics "
-                            "workflow could not complete "
-                            "this question."
-                        )
-
-                        st.error(
-                            error_message
-                        )
-
-                        with st.expander(
-                            "Technical details"
-                        ):
-
-                            st.exception(
-                                error
-                            )
-
-                        st.session_state[
-                            "chat_messages"
-                        ].append(
-                            {
-                                "role":
-                                    "assistant",
-
-                                "content":
-                                    error_message,
-
-                                "metadata": {},
-                            }
-                        )
-
-
-# ==========================================================
-# EMPTY STATE
-# ==========================================================
-
-else:
-
-    st.info(
-        "Upload a CSV dataset and run the analysis to "
-        "generate analytics results and unlock "
-        "conversational analytics."
-    )
+if __name__ == "__main__":
+    main()

@@ -13,16 +13,21 @@ from src.llm.client import generate_json_response
 MAX_EVIDENCE_RESULTS = 10
 MAX_ERRORS = 5
 
+# Final answer generation should be short and deterministic.
+ANSWER_NUM_PREDICT = 384
+ANSWER_TEMPERATURE = 0.0
+
 
 # ==========================================================
-# HELPERS
+# EXECUTION HELPERS
 # ==========================================================
 
 def _normalise_execution(
     execution: dict[str, Any] | None,
 ) -> dict[str, Any]:
     """
-    Normalise executor output before passing it to the LLM.
+    Normalise executor output before using it for answer
+    generation.
     """
 
     if not isinstance(execution, dict):
@@ -68,30 +73,70 @@ def _extract_evidence(
     execution: dict[str, Any],
 ) -> list[dict[str, Any]]:
     """
-    Extract successfully computed evidence objects.
+    Extract successfully computed evidence objects from
+    executor output.
     """
 
-    evidence = []
+    evidence_items: list[dict[str, Any]] = []
 
-    for result in execution.get(
+    results = execution.get(
         "results",
         [],
-    ):
+    )
+
+    if not isinstance(results, list):
+        return evidence_items
+
+    for result in results:
 
         if not isinstance(result, dict):
             continue
 
-        item = result.get(
+        evidence = result.get(
             "evidence"
         )
 
-        if isinstance(item, dict):
-            evidence.append(
-                item
+        if isinstance(evidence, dict):
+            evidence_items.append(
+                evidence
             )
 
-    return evidence
+    return evidence_items
 
+
+def _extract_evidence_tools(
+    evidence_items: list[dict[str, Any]],
+) -> list[str]:
+    """
+    Extract unique analytical tool names from evidence.
+    """
+
+    tools: list[str] = []
+
+    for evidence in evidence_items:
+
+        if not isinstance(evidence, dict):
+            continue
+
+        tool = evidence.get(
+            "tool"
+        )
+
+        if (
+            isinstance(tool, str)
+            and tool.strip()
+            and tool not in tools
+        ):
+            tools.append(
+                tool
+            )
+
+    return tools
+
+
+# ==========================================================
+# FORMAT HELPERS
+# ==========================================================
 
 def _format_number(
     value: Any,
@@ -116,17 +161,46 @@ def _format_number(
                 int(value)
             )
 
-        return f"{value:,.3f}".rstrip(
-            "0"
-        ).rstrip(
-            "."
+        return (
+            f"{value:,.3f}"
+            .rstrip("0")
+            .rstrip(".")
         )
 
     return str(value)
 
 
+def _normalise_string_list(
+    value: Any,
+) -> list[str]:
+    """
+    Convert an LLM field into a clean list of strings.
+    """
+
+    if not isinstance(value, list):
+        return []
+
+    result: list[str] = []
+
+    for item in value:
+
+        if item is None:
+            continue
+
+        text = str(
+            item
+        ).strip()
+
+        if text:
+            result.append(
+                text
+            )
+
+    return result
+
+
 # ==========================================================
-# FALLBACK ANSWERS
+# FALLBACK: DESCRIPTIVE STATISTICS
 # ==========================================================
 
 def _fallback_from_descriptive(
@@ -142,6 +216,12 @@ def _fallback_from_descriptive(
         "statistics",
         {},
     )
+
+    if not isinstance(
+        statistics,
+        dict,
+    ):
+        statistics = {}
 
     if evidence.get(
         "column_type"
@@ -165,6 +245,10 @@ def _fallback_from_descriptive(
     )
 
 
+# ==========================================================
+# FALLBACK: DISTRIBUTION
+# ==========================================================
+
 def _fallback_from_distribution(
     evidence: dict[str, Any],
 ) -> str:
@@ -178,6 +262,12 @@ def _fallback_from_distribution(
         "distribution",
         {},
     )
+
+    if not isinstance(
+        distribution,
+        dict,
+    ):
+        distribution = {}
 
     if (
         evidence.get("distribution_type")
@@ -209,6 +299,10 @@ def _fallback_from_distribution(
     )
 
 
+# ==========================================================
+# FALLBACK: CORRELATION
+# ==========================================================
+
 def _fallback_from_correlation(
     evidence: dict[str, Any],
 ) -> str:
@@ -218,15 +312,25 @@ def _fallback_from_correlation(
         [],
     )
 
+    if not isinstance(
+        pairs,
+        list,
+    ):
+        pairs = []
+
     if not pairs:
+
         return (
             "The requested correlation could not be "
             "calculated from the available observations."
         )
 
-    statements = []
+    statements: list[str] = []
 
     for pair in pairs:
+
+        if not isinstance(pair, dict):
+            continue
 
         statements.append(
             (
@@ -240,12 +344,25 @@ def _fallback_from_correlation(
             )
         )
 
+    if not statements:
+
+        return (
+            "The requested correlation could not be "
+            "calculated from the available observations."
+        )
+
     return (
-        ". ".join(statements)
+        ". ".join(
+            statements
+        )
         + ". Correlation describes association and does "
           "not establish causation."
     )
 
+
+# ==========================================================
+# FALLBACK: COMPARISON
+# ==========================================================
 
 def _fallback_from_comparison(
     evidence: dict[str, Any],
@@ -256,9 +373,21 @@ def _fallback_from_comparison(
         {},
     )
 
-    statements = []
+    if not isinstance(
+        comparison,
+        dict,
+    ):
+        comparison = {}
+
+    statements: list[str] = []
 
     for column, information in comparison.items():
+
+        if not isinstance(
+            information,
+            dict,
+        ):
+            continue
 
         if information.get(
             "type"
@@ -268,6 +397,12 @@ def _fallback_from_comparison(
                 "summary",
                 {},
             )
+
+            if not isinstance(
+                summary,
+                dict,
+            ):
+                summary = {}
 
             statements.append(
                 (
@@ -285,6 +420,12 @@ def _fallback_from_comparison(
                 {},
             )
 
+            if not isinstance(
+                distribution,
+                dict,
+            ):
+                distribution = {}
+
             statements.append(
                 (
                     f"{column}: "
@@ -293,16 +434,23 @@ def _fallback_from_comparison(
             )
 
     if not statements:
+
         return (
             "No comparison evidence was available."
         )
 
     return (
         "Comparison results: "
-        + "; ".join(statements)
+        + "; ".join(
+            statements
+        )
         + "."
     )
 
+
+# ==========================================================
+# FALLBACK: TARGET RELATIONSHIP
+# ==========================================================
 
 def _fallback_from_target_relationship(
     evidence: dict[str, Any],
@@ -328,9 +476,27 @@ def _fallback_from_target_relationship(
         {},
     )
 
-    parts = [
+    if not isinstance(
+        target_distribution,
+        dict,
+    ):
+        target_distribution = {}
+
+    if not isinstance(
+        numeric_relationships,
+        dict,
+    ):
+        numeric_relationships = {}
+
+    if not isinstance(
+        categorical_relationships,
+        dict,
+    ):
+        categorical_relationships = {}
+
+    parts: list[str] = [
         (
-            f"The analysis examined associations with "
+            "The analysis examined associations with "
             f"'{target}'."
         )
     ]
@@ -340,28 +506,54 @@ def _fallback_from_target_relationship(
     )
 
     if frequencies:
+
         parts.append(
             f"The target distribution is {frequencies}."
         )
+
+    # ------------------------------------------------------
+    # NUMERIC FEATURES
+    # ------------------------------------------------------
 
     for feature, relationship in (
         numeric_relationships.items()
     ):
 
+        if not isinstance(
+            relationship,
+            dict,
+        ):
+            continue
+
         analysis = relationship.get(
             "analysis"
         )
 
-        if analysis == "grouped_statistics_by_target":
+        if (
+            analysis
+            == "grouped_statistics_by_target"
+        ):
 
             groups = relationship.get(
                 "groups",
                 {},
             )
 
-            group_descriptions = []
+            if not isinstance(
+                groups,
+                dict,
+            ):
+                groups = {}
+
+            group_descriptions: list[str] = []
 
             for group, statistics in groups.items():
+
+                if not isinstance(
+                    statistics,
+                    dict,
+                ):
+                    continue
 
                 group_descriptions.append(
                     (
@@ -382,7 +574,10 @@ def _fallback_from_target_relationship(
                     )
                 )
 
-        elif analysis == "pearson_correlation":
+        elif (
+            analysis
+            == "pearson_correlation"
+        ):
 
             parts.append(
                 (
@@ -393,12 +588,26 @@ def _fallback_from_target_relationship(
                 )
             )
 
+    # ------------------------------------------------------
+    # CATEGORICAL FEATURES
+    # ------------------------------------------------------
+
     for feature, relationship in (
         categorical_relationships.items()
     ):
 
+        if not isinstance(
+            relationship,
+            dict,
+        ):
+            continue
+
+        analysis = relationship.get(
+            "analysis"
+        )
+
         if (
-            relationship.get("analysis")
+            analysis
             == "contingency_table"
         ):
 
@@ -411,7 +620,7 @@ def _fallback_from_target_relationship(
             )
 
         elif (
-            relationship.get("analysis")
+            analysis
             == "target_statistics_by_group"
         ):
 
@@ -434,6 +643,10 @@ def _fallback_from_target_relationship(
         parts
     )
 
+
+# ==========================================================
+# FALLBACK: COUNT
+# ==========================================================
 
 def _fallback_from_count(
     evidence: dict[str, Any],
@@ -473,6 +686,10 @@ def _fallback_from_count(
     )
 
 
+# ==========================================================
+# FALLBACK: DATA QUALITY
+# ==========================================================
+
 def _fallback_from_quality(
     evidence: dict[str, Any],
 ) -> str:
@@ -486,6 +703,10 @@ def _fallback_from_quality(
         f"{evidence.get('missing_values', {})}."
     )
 
+
+# ==========================================================
+# FALLBACK: DATASET OVERVIEW
+# ==========================================================
 
 def _fallback_from_overview(
     evidence: dict[str, Any],
@@ -507,38 +728,52 @@ def _fallback_from_overview(
     )
 
 
+# ==========================================================
+# DETERMINISTIC FALLBACK
+# ==========================================================
+
 def _generate_fallback_answer(
     evidence_items: list[dict[str, Any]],
 ) -> str:
     """
-    Generate an evidence-based answer without an LLM.
+    Generate an evidence-grounded answer without an LLM.
     """
 
     if not evidence_items:
+
         return (
             "I could not produce an answer because no "
             "successful analytical evidence was generated."
         )
 
-    answers = []
+    answers: list[str] = []
 
     for evidence in evidence_items:
+
+        if not isinstance(
+            evidence,
+            dict,
+        ):
+            continue
 
         tool = evidence.get(
             "tool"
         )
 
         if tool == "descriptive_statistics":
+
             answer = _fallback_from_descriptive(
                 evidence
             )
 
         elif tool == "distribution":
+
             answer = _fallback_from_distribution(
                 evidence
             )
 
         elif tool == "correlation":
+
             answer = _fallback_from_correlation(
                 evidence
             )
@@ -547,31 +782,37 @@ def _generate_fallback_answer(
             "comparison",
             "relationship",
         }:
+
             answer = _fallback_from_comparison(
                 evidence
             )
 
         elif tool == "target_relationship":
+
             answer = _fallback_from_target_relationship(
                 evidence
             )
 
         elif tool == "count":
+
             answer = _fallback_from_count(
                 evidence
             )
 
         elif tool == "data_quality":
+
             answer = _fallback_from_quality(
                 evidence
             )
 
         elif tool == "dataset_overview":
+
             answer = _fallback_from_overview(
                 evidence
             )
 
         else:
+
             answer = (
                 f"Computed evidence: {evidence}"
             )
@@ -580,8 +821,227 @@ def _generate_fallback_answer(
             answer
         )
 
+    if not answers:
+
+        return (
+            "I could not produce an answer because no "
+            "supported analytical evidence was generated."
+        )
+
     return " ".join(
         answers
+    )
+
+
+# ==========================================================
+# LLM CONTEXT
+# ==========================================================
+
+def _build_llm_context(
+    question: str,
+    query_analysis: dict[str, Any],
+    evidence_items: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """
+    Build the minimum context required for final natural
+    language interpretation.
+
+    The query plan and executor metadata are deliberately
+    excluded. The LLM only needs the user's question,
+    analytical intent, and already-computed evidence.
+    """
+
+    return {
+        "question":
+            question,
+
+        "intent":
+            query_analysis.get(
+                "intent"
+            ),
+
+        "analysis_type":
+            query_analysis.get(
+                "analysis_type"
+            ),
+
+        "evidence":
+            evidence_items,
+    }
+
+
+def _build_answer_prompt(
+    grounded_context: dict[str, Any],
+) -> str:
+    """
+    Build a compact prompt for grounded answer generation.
+    """
+
+    context_json = json.dumps(
+        grounded_context,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    )
+
+    prompt = f"""
+You are the final response layer of a data analytics system.
+
+Python has already performed all calculations.
+
+Your only task is to explain the supplied evidence and answer
+the user's question.
+
+STRICT RULES:
+
+- Use only values and facts present in INPUT.
+- Never invent statistics, categories, relationships, or facts.
+- Never perform new calculations.
+- Never modify numbers from the evidence.
+- Answer the user's actual question directly.
+- Keep the answer concise and useful.
+- Do not repeat or reconstruct INPUT.
+- Do not return query plans or analytical context.
+- Do not describe correlation or grouped differences as causal.
+- Do not claim statistical significance unless explicitly
+  provided in the evidence.
+- If the evidence is insufficient, say that clearly.
+- Add cautions only when they are relevant to interpretation.
+
+Return exactly one JSON object.
+
+The object must contain exactly these keys:
+
+{{
+  "answer": "direct natural-language answer",
+  "key_points": [],
+  "cautions": []
+}}
+
+"answer" must be a non-empty string.
+
+"key_points" must be a JSON array of short evidence-backed
+strings.
+
+"cautions" must be a JSON array of short limitation strings.
+
+INPUT:
+{context_json}
+
+Return only the required JSON object now.
+"""
+
+    return prompt.strip()
+
+
+# ==========================================================
+# LLM RESPONSE VALIDATION
+# ==========================================================
+
+def _validate_llm_response(
+    response: Any,
+) -> tuple[str, list[str], list[str]]:
+    """
+    Validate and normalise the structured LLM answer.
+    """
+
+    if not isinstance(
+        response,
+        dict,
+    ):
+
+        raise ValueError(
+            "Answer generator expected a JSON object."
+        )
+
+    # ------------------------------------------------------
+    # DETECT CONTEXT ECHO
+    # ------------------------------------------------------
+
+    unexpected_context_keys = {
+        "question",
+        "query_analysis",
+        "query_plan",
+        "computed_evidence",
+        "execution_report",
+        "evidence",
+        "intent",
+        "analysis_type",
+    }
+
+    response_keys = set(
+        response.keys()
+    )
+
+    echoed_keys = (
+        unexpected_context_keys
+        & response_keys
+    )
+
+    if echoed_keys:
+
+        raise ValueError(
+            "LLM returned analytical context instead of "
+            "the required answer object."
+        )
+
+    # ------------------------------------------------------
+    # ANSWER
+    # ------------------------------------------------------
+
+    if "answer" not in response:
+
+        raise ValueError(
+            "LLM response is missing 'answer'."
+        )
+
+    answer = response.get(
+        "answer"
+    )
+
+    if not isinstance(
+        answer,
+        str,
+    ):
+
+        raise ValueError(
+            "'answer' must be a string."
+        )
+
+    answer = answer.strip()
+
+    if not answer:
+
+        raise ValueError(
+            "LLM returned an empty answer."
+        )
+
+    # ------------------------------------------------------
+    # KEY POINTS
+    # ------------------------------------------------------
+
+    key_points = _normalise_string_list(
+        response.get(
+            "key_points",
+            [],
+        )
+    )
+
+    # ------------------------------------------------------
+    # CAUTIONS
+    # ------------------------------------------------------
+
+    cautions = _normalise_string_list(
+        response.get(
+            "cautions",
+            [],
+        )
+    )
+
+    return (
+        answer,
+        key_points,
+        cautions,
     )
 
 
@@ -597,19 +1057,39 @@ def generate_query_answer(
 ) -> dict[str, Any]:
     """
     Generate a grounded natural-language answer from
-    previously computed analytical evidence.
+    deterministic analytical evidence.
 
-    The LLM is used only for interpretation and explanation.
-    It must not invent new calculations.
+    Pipeline:
 
-    If the LLM fails, a deterministic evidence-based
-    fallback answer is returned.
+        question
+            ↓
+        query analysis
+            ↓
+        query plan
+            ↓
+        deterministic executor
+            ↓
+        computed evidence
+            ↓
+        LLM interpretation
+            ↓
+        final answer
+
+    The LLM never performs the analytical computation.
+
+    If LLM generation fails, the function returns a
+    deterministic answer generated directly from evidence.
     """
+
+    # ======================================================
+    # INPUT VALIDATION
+    # ======================================================
 
     if not isinstance(
         question,
         str,
     ):
+
         raise TypeError(
             "question must be a string."
         )
@@ -617,6 +1097,7 @@ def generate_query_answer(
     question = question.strip()
 
     if not question:
+
         raise ValueError(
             "question cannot be empty."
         )
@@ -625,6 +1106,7 @@ def generate_query_answer(
         query_analysis,
         dict,
     ):
+
         raise TypeError(
             "query_analysis must be a dictionary."
         )
@@ -633,9 +1115,23 @@ def generate_query_answer(
         query_plan,
         list,
     ):
+
         raise TypeError(
             "query_plan must be a list."
         )
+
+    if not isinstance(
+        execution,
+        dict,
+    ):
+
+        raise TypeError(
+            "execution must be a dictionary."
+        )
+
+    # ======================================================
+    # NORMALISE EXECUTION
+    # ======================================================
 
     normalised_execution = _normalise_execution(
         execution
@@ -643,6 +1139,10 @@ def generate_query_answer(
 
     evidence_items = _extract_evidence(
         normalised_execution
+    )
+
+    evidence_tools = _extract_evidence_tools(
+        evidence_items
     )
 
     # ======================================================
@@ -684,112 +1184,18 @@ def generate_query_answer(
         }
 
     # ======================================================
-    # BUILD GROUNDED CONTEXT
+    # BUILD MINIMAL LLM CONTEXT
     # ======================================================
 
-    grounded_context = {
-        "question":
-            question,
+    grounded_context = _build_llm_context(
+        question=question,
+        query_analysis=query_analysis,
+        evidence_items=evidence_items,
+    )
 
-        "query_analysis":
-            {
-                "intent":
-                    query_analysis.get(
-                        "intent"
-                    ),
-
-                "analysis_type":
-                    query_analysis.get(
-                        "analysis_type"
-                    ),
-
-                "requested_columns":
-                    query_analysis.get(
-                        "requested_columns",
-                        [],
-                    ),
-
-                "target_columns":
-                    query_analysis.get(
-                        "target_columns",
-                        [],
-                    ),
-            },
-
-        "query_plan":
-            query_plan,
-
-        "computed_evidence":
-            evidence_items,
-
-        "execution_report":
-            normalised_execution.get(
-                "execution_report",
-                {},
-            ),
-    }
-
-    # ======================================================
-    # PROMPT
-    # ======================================================
-
-    prompt = f"""
-You are the final answer layer of a data analytics system.
-
-The user's question has already been analysed, planned, and
-executed using deterministic Python/Pandas computations.
-
-Your job is ONLY to explain the supplied computed evidence.
-
-STRICT RULES:
-
-1. Use only the computed evidence supplied below.
-
-2. Do not invent statistics, values, sample sizes,
-   relationships, categories, or dataset facts.
-
-3. Do not perform new calculations yourself.
-
-4. If evidence is insufficient, explicitly say so.
-
-5. Correlation and grouped differences are associations.
-   Never describe them as causal effects.
-
-6. Do not claim statistical significance unless a
-   significance test and its result are explicitly present
-   in the evidence.
-
-7. Do not call something predictive, important, or a
-   feature importance score unless the evidence explicitly
-   supports that statement.
-
-8. Mention missing-data or small-sample limitations when
-   they materially affect interpretation.
-
-9. Answer the user's actual question directly.
-
-10. Keep the answer concise and useful.
-
-Return ONLY valid JSON using exactly this structure:
-
-{{
-    "answer": "direct natural-language answer",
-    "key_points": [
-        "important evidence-backed point"
-    ],
-    "cautions": [
-        "relevant analytical limitation"
-    ]
-}}
-
-ANALYTICAL CONTEXT:
-
-{json.dumps(
-    grounded_context,
-    indent=2,
-    default=str,
-)}
-"""
+    prompt = _build_answer_prompt(
+        grounded_context
+    )
 
     # ======================================================
     # LLM GENERATION
@@ -802,68 +1208,17 @@ ANALYTICAL CONTEXT:
 
         response = generate_json_response(
             prompt=prompt,
-            temperature=0.1,
+            temperature=ANSWER_TEMPERATURE,
+            num_predict=ANSWER_NUM_PREDICT,
         )
 
-        if not isinstance(
-            response,
-            dict,
-        ):
-            raise ValueError(
-                "Answer generator expected a JSON object."
-            )
-
-        answer = response.get(
-            "answer",
-            ""
-        )
-
-        key_points = response.get(
-            "key_points",
-            [],
-        )
-
-        cautions = response.get(
-            "cautions",
-            [],
-        )
-
-        if not isinstance(
+        (
             answer,
-            str,
-        ):
-            answer = str(
-                answer
-            )
-
-        answer = answer.strip()
-
-        if not answer:
-            raise ValueError(
-                "LLM returned an empty answer."
-            )
-
-        if not isinstance(
             key_points,
-            list,
-        ):
-            key_points = []
-
-        if not isinstance(
             cautions,
-            list,
-        ):
-            cautions = []
-
-        key_points = [
-            str(point)
-            for point in key_points
-        ]
-
-        cautions = [
-            str(caution)
-            for caution in cautions
-        ]
+        ) = _validate_llm_response(
+            response
+        )
 
         llm_used = True
 
@@ -888,24 +1243,8 @@ ANALYTICAL CONTEXT:
         ]
 
     # ======================================================
-    # RESULT
+    # FINAL RESULT
     # ======================================================
-
-    evidence_tools = []
-
-    for evidence in evidence_items:
-
-        tool = evidence.get(
-            "tool"
-        )
-
-        if (
-            tool
-            and tool not in evidence_tools
-        ):
-            evidence_tools.append(
-                tool
-            )
 
     return {
         "question":
