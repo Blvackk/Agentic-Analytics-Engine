@@ -6,6 +6,11 @@ from src.agents.report_generator import (
     generate_report,
     save_report,
 )
+from src.agents.query_analyzer import analyze_query
+from src.agents.query_planner import create_query_plan
+from src.agents.query_executor import execute_query_plan
+from src.agents.answer_generator import generate_query_answer
+
 from src.agents.insight_generator import generate_insights
 from src.agents.state import AgentState
 from src.agents.semantic_analyzer import analyze_semantics
@@ -1010,4 +1015,373 @@ def generate_report_node(
 
         "report_path":
             report_path,
+    }
+# ==========================================================
+# 13. CONVERSATIONAL QUERY ANALYSIS NODE
+# ==========================================================
+
+def analyze_query_node(
+    state: AgentState
+) -> dict:
+    """
+    Interpret the user's natural-language analytics question.
+
+    The query analyzer uses the active analytical DataFrame
+    together with semantic information discovered during
+    dataset analysis.
+
+    Returns
+    -------
+    dict
+        AgentState update containing query_analysis.
+    """
+
+    # --------------------------------------------------
+    # GET QUESTION
+    # --------------------------------------------------
+
+    question = state.get(
+        "user_question",
+        ""
+    )
+
+    if not isinstance(
+        question,
+        str,
+    ):
+        raise TypeError(
+            "user_question must be a string."
+        )
+
+    question = question.strip()
+
+    if not question:
+        raise ValueError(
+            "user_question is missing from AgentState."
+        )
+
+    # --------------------------------------------------
+    # SELECT DATASET
+    # --------------------------------------------------
+
+    (
+        analysis_dataframe,
+        _,
+    ) = _get_analysis_dataframe(
+        state
+    )
+
+    # --------------------------------------------------
+    # GET SEMANTIC CONTEXT
+    # --------------------------------------------------
+
+    semantic_analysis = state.get(
+        "semantic_analysis",
+        {}
+    )
+
+    # --------------------------------------------------
+    # ANALYZE QUESTION
+    # --------------------------------------------------
+
+    query_analysis = analyze_query(
+        question=question,
+        dataframe=analysis_dataframe,
+        semantic_analysis=semantic_analysis,
+    )
+
+    if not isinstance(
+        query_analysis,
+        dict,
+    ):
+        raise ValueError(
+            "analyze_query() must return a dictionary."
+        )
+
+    return {
+        "query_analysis":
+            query_analysis,
+    }
+
+
+# ==========================================================
+# 14. CONVERSATIONAL QUERY PLANNING NODE
+# ==========================================================
+
+def plan_query_node(
+    state: AgentState
+) -> dict:
+    """
+    Convert the interpreted user question into a safe,
+    deterministic analytical execution plan.
+
+    Returns
+    -------
+    dict
+        AgentState update containing query_plan.
+    """
+
+    query_analysis = state.get(
+        "query_analysis"
+    )
+
+    if query_analysis is None:
+        raise ValueError(
+            "query_analysis is missing from AgentState."
+        )
+
+    if not isinstance(
+        query_analysis,
+        dict,
+    ):
+        raise TypeError(
+            "query_analysis must be a dictionary."
+        )
+
+    # --------------------------------------------------
+    # SELECT DATASET
+    # --------------------------------------------------
+
+    (
+        planning_dataframe,
+        _,
+    ) = _get_analysis_dataframe(
+        state
+    )
+
+    # --------------------------------------------------
+    # GET SEMANTIC CONTEXT
+    # --------------------------------------------------
+
+    semantic_analysis = state.get(
+        "semantic_analysis",
+        {}
+    )
+
+    # --------------------------------------------------
+    # CREATE PLAN
+    # --------------------------------------------------
+
+    query_plan = create_query_plan(
+        query_analysis=query_analysis,
+        dataframe=planning_dataframe,
+        semantic_analysis=semantic_analysis,
+    )
+
+    if not isinstance(
+        query_plan,
+        list,
+    ):
+        raise ValueError(
+            "create_query_plan() must return a list."
+        )
+
+    return {
+        "query_plan":
+            query_plan,
+    }
+
+
+# ==========================================================
+# 15. CONVERSATIONAL QUERY EXECUTION NODE
+# ==========================================================
+
+def execute_query_node(
+    state: AgentState
+) -> dict:
+    """
+    Execute the conversational analytics plan using
+    deterministic Python analytical tools.
+
+    The LLM does not calculate statistics here. It has
+    already interpreted the question and created a plan;
+    this node produces the evidence used for the answer.
+
+    Returns
+    -------
+    dict
+        AgentState update containing query_execution.
+    """
+
+    query_plan = state.get(
+        "query_plan"
+    )
+
+    if query_plan is None:
+        raise ValueError(
+            "query_plan is missing from AgentState."
+        )
+
+    if not isinstance(
+        query_plan,
+        list,
+    ):
+        raise TypeError(
+            "query_plan must be a list."
+        )
+
+    # --------------------------------------------------
+    # SELECT DATASET
+    # --------------------------------------------------
+
+    (
+        execution_dataframe,
+        _,
+    ) = _get_analysis_dataframe(
+        state
+    )
+
+    # --------------------------------------------------
+    # EXECUTE PLAN
+    # --------------------------------------------------
+
+    query_execution = execute_query_plan(
+        dataframe=execution_dataframe,
+        query_plan=query_plan,
+    )
+
+    if not isinstance(
+        query_execution,
+        dict,
+    ):
+        raise ValueError(
+            "execute_query_plan() must return a dictionary."
+        )
+
+    return {
+        "query_execution":
+            query_execution,
+    }
+
+
+# ==========================================================
+# 16. CONVERSATIONAL ANSWER GENERATION NODE
+# ==========================================================
+
+def generate_answer_node(
+    state: AgentState
+) -> dict:
+    """
+    Generate a grounded natural-language answer from the
+    deterministic evidence produced by query execution.
+
+    The answer generator may use the LLM for interpretation,
+    while retaining its deterministic fallback when the LLM
+    is unavailable or returns an unusable response.
+
+    Returns
+    -------
+    dict
+        AgentState update containing query_answer.
+    """
+
+    # --------------------------------------------------
+    # GET QUESTION
+    # --------------------------------------------------
+
+    question = state.get(
+        "user_question",
+        ""
+    )
+
+    if not isinstance(
+        question,
+        str,
+    ):
+        raise TypeError(
+            "user_question must be a string."
+        )
+
+    question = question.strip()
+
+    if not question:
+        raise ValueError(
+            "user_question is missing from AgentState."
+        )
+
+    # --------------------------------------------------
+    # GET QUERY ANALYSIS
+    # --------------------------------------------------
+
+    query_analysis = state.get(
+        "query_analysis"
+    )
+
+    if query_analysis is None:
+        raise ValueError(
+            "query_analysis is missing from AgentState."
+        )
+
+    if not isinstance(
+        query_analysis,
+        dict,
+    ):
+        raise TypeError(
+            "query_analysis must be a dictionary."
+        )
+
+    # --------------------------------------------------
+    # GET QUERY PLAN
+    # --------------------------------------------------
+
+    query_plan = state.get(
+        "query_plan"
+    )
+
+    if query_plan is None:
+        raise ValueError(
+            "query_plan is missing from AgentState."
+        )
+
+    if not isinstance(
+        query_plan,
+        list,
+    ):
+        raise TypeError(
+            "query_plan must be a list."
+        )
+
+    # --------------------------------------------------
+    # GET EXECUTION EVIDENCE
+    # --------------------------------------------------
+
+    query_execution = state.get(
+        "query_execution"
+    )
+
+    if query_execution is None:
+        raise ValueError(
+            "query_execution is missing from AgentState."
+        )
+
+    if not isinstance(
+        query_execution,
+        dict,
+    ):
+        raise TypeError(
+            "query_execution must be a dictionary."
+        )
+
+    # --------------------------------------------------
+    # GENERATE GROUNDED ANSWER
+    # --------------------------------------------------
+
+    query_answer = generate_query_answer(
+        question=question,
+        query_analysis=query_analysis,
+        query_plan=query_plan,
+        execution=query_execution,
+    )
+
+    if not isinstance(
+        query_answer,
+        dict,
+    ):
+        raise ValueError(
+            "generate_query_answer() must return a dictionary."
+        )
+
+    return {
+        "query_answer":
+            query_answer,
     }

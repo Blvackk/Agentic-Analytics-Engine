@@ -9,6 +9,9 @@ from langgraph.graph import (
 from src.agents.state import AgentState
 
 from src.agents.nodes import (
+    # ========================================================
+    # PHASE 1 — AUTONOMOUS ANALYTICS
+    # ========================================================
     load_dataset_node,
     profile_dataset_node,
     data_quality_node,
@@ -21,72 +24,91 @@ from src.agents.nodes import (
     execute_eda_node,
     generate_insights_node,
     generate_report_node,
+
+    # ========================================================
+    # PHASE 2 — CONVERSATIONAL ANALYTICS
+    # ========================================================
+    analyze_query_node,
+    plan_query_node,
+    execute_query_node,
+    generate_answer_node,
 )
 
 
+# ============================================================
+# PHASE 1 — AUTONOMOUS ANALYTICS GRAPH
+# ============================================================
+
 def build_graph():
     """
-    Build and compile the Agentic Analytics workflow.
+    Build and compile the Phase 1 autonomous analytics
+    workflow.
 
-    Workflow:
+    Workflow
+    --------
 
-                    START
-                      |
-                      v
-                Load Dataset
-                      |
-                      v
-               Profile Dataset
-                      |
-                      v
-                Data Quality
-                      |
-                      v
-              Cleaning needed?
-                 /         \
-               YES          NO
-                |            |
-                v            |
-          Clean Dataset      |
-                |            |
-                v            |
-        Validate Cleaning    |
-                |            |
-                +------------+
-                      |
-                      v
-              Semantic Analysis
-                      |
-                      v
-            Statistical Analysis
-                      |
-                      v
-                  Plan EDA
-                      |
-                      v
-                Execute EDA
-                      |
-                      v
-             Generate Insights
-                      |
-                      v
-              Generate Report
-                      |
-                      v
-                     END
+        START
+          |
+          v
+    Load Dataset
+          |
+          v
+    Profile Dataset
+          |
+          v
+     Data Quality
+          |
+          v
+    Cleaning needed?
+       /       \
+     YES        NO
+      |          |
+      v          |
+    Clean        |
+      |          |
+      v          |
+    Validate     |
+      |          |
+      +----------+
+          |
+          v
+    Semantic Analysis
+          |
+          v
+    Statistical Analysis
+          |
+          v
+       Plan EDA
+          |
+          v
+      Execute EDA
+          |
+          v
+    Generate Insights
+          |
+          v
+    Generate Report
+          |
+          v
+         END
+
+    Returns
+    -------
+    CompiledStateGraph
+        Compiled LangGraph workflow.
     """
 
-    # ==================================================
+    # ========================================================
     # CREATE WORKFLOW
-    # ==================================================
+    # ========================================================
 
     workflow = StateGraph(
         AgentState
     )
 
-    # ==================================================
-    # ADD NODES
-    # ==================================================
+    # ========================================================
+    # ADD PHASE 1 NODES
+    # ========================================================
 
     workflow.add_node(
         "load_dataset",
@@ -143,36 +165,36 @@ def build_graph():
         generate_report_node,
     )
 
-    # ==================================================
-    # START -> LOAD
-    # ==================================================
+    # ========================================================
+    # START -> LOAD DATASET
+    # ========================================================
 
     workflow.add_edge(
         START,
         "load_dataset",
     )
 
-    # ==================================================
+    # ========================================================
     # LOAD -> PROFILE
-    # ==================================================
+    # ========================================================
 
     workflow.add_edge(
         "load_dataset",
         "profile_dataset",
     )
 
-    # ==================================================
-    # PROFILE -> QUALITY
-    # ==================================================
+    # ========================================================
+    # PROFILE -> DATA QUALITY
+    # ========================================================
 
     workflow.add_edge(
         "profile_dataset",
         "data_quality",
     )
 
-    # ==================================================
-    # QUALITY -> CLEAN OR SEMANTIC ANALYSIS
-    # ==================================================
+    # ========================================================
+    # DATA QUALITY -> CLEAN OR SEMANTIC ANALYSIS
+    # ========================================================
 
     workflow.add_conditional_edges(
         "data_quality",
@@ -183,81 +205,229 @@ def build_graph():
         },
     )
 
-    # ==================================================
+    # ========================================================
     # CLEAN -> VALIDATE
-    # ==================================================
+    # ========================================================
 
     workflow.add_edge(
         "clean_dataset",
         "validate_cleaning",
     )
 
-    # ==================================================
+    # ========================================================
     # VALIDATE -> SEMANTIC ANALYSIS
-    # ==================================================
+    # ========================================================
 
     workflow.add_edge(
         "validate_cleaning",
         "semantic_analysis",
     )
 
-    # ==================================================
+    # ========================================================
     # SEMANTIC -> STATISTICAL ANALYSIS
-    # ==================================================
+    # ========================================================
 
     workflow.add_edge(
         "semantic_analysis",
         "analysis_dataset",
     )
 
-    # ==================================================
+    # ========================================================
     # STATISTICS -> EDA PLANNER
-    # ==================================================
+    # ========================================================
 
     workflow.add_edge(
         "analysis_dataset",
         "plan_eda",
     )
 
-    # ==================================================
-    # PLANNER -> EXECUTOR
-    # ==================================================
+    # ========================================================
+    # EDA PLANNER -> EDA EXECUTOR
+    # ========================================================
 
     workflow.add_edge(
         "plan_eda",
         "execute_eda",
     )
 
-    # ==================================================
+    # ========================================================
     # EXECUTOR -> INSIGHT GENERATOR
-    # ==================================================
+    # ========================================================
 
     workflow.add_edge(
         "execute_eda",
         "generate_insights",
     )
 
-    # ==================================================
+    # ========================================================
     # INSIGHTS -> REPORT GENERATOR
-    # ==================================================
+    # ========================================================
 
     workflow.add_edge(
         "generate_insights",
         "generate_report",
     )
 
-    # ==================================================
+    # ========================================================
     # REPORT -> END
-    # ==================================================
+    # ========================================================
 
     workflow.add_edge(
         "generate_report",
         END,
     )
 
-    # ==================================================
-    # COMPILE WORKFLOW
-    # ==================================================
+    # ========================================================
+    # COMPILE
+    # ========================================================
+
+    graph = workflow.compile()
+
+    return graph
+
+
+# ============================================================
+# PHASE 2 — CONVERSATIONAL ANALYTICS GRAPH
+# ============================================================
+
+def build_conversation_graph():
+    """
+    Build and compile the Phase 2 conversational analytics
+    workflow.
+
+    Phase 1 prepares, cleans, understands and analyses the
+    dataset.
+
+    Phase 2 receives a natural-language question and uses
+    the prepared dataset context to perform grounded
+    conversational analytics.
+
+    Workflow
+    --------
+
+        START
+          |
+          v
+    Analyze Query
+          |
+          v
+      Plan Query
+          |
+          v
+    Execute Query
+          |
+          v
+    Generate Answer
+          |
+          v
+         END
+
+
+    Node responsibilities
+    ---------------------
+
+    analyze_query_node
+        Understand the user's question, determine intent,
+        identify requested columns and target context.
+
+    plan_query_node
+        Convert the interpreted question into a deterministic
+        analytical execution plan.
+
+    execute_query_node
+        Execute supported analytical tools against the
+        dataframe and produce computed evidence.
+
+    generate_answer_node
+        Convert the computed evidence into a grounded
+        user-facing answer.
+
+    Returns
+    -------
+    CompiledStateGraph
+        Compiled conversational LangGraph workflow.
+    """
+
+    # ========================================================
+    # CREATE WORKFLOW
+    # ========================================================
+
+    workflow = StateGraph(
+        AgentState
+    )
+
+    # ========================================================
+    # ADD PHASE 2 NODES
+    # ========================================================
+
+    workflow.add_node(
+        "analyze_query",
+        analyze_query_node,
+    )
+
+    workflow.add_node(
+        "plan_query",
+        plan_query_node,
+    )
+
+    workflow.add_node(
+        "execute_query",
+        execute_query_node,
+    )
+
+    workflow.add_node(
+        "generate_answer",
+        generate_answer_node,
+    )
+
+    # ========================================================
+    # START -> QUERY ANALYZER
+    # ========================================================
+
+    workflow.add_edge(
+        START,
+        "analyze_query",
+    )
+
+    # ========================================================
+    # QUERY ANALYZER -> QUERY PLANNER
+    # ========================================================
+
+    workflow.add_edge(
+        "analyze_query",
+        "plan_query",
+    )
+
+    # ========================================================
+    # QUERY PLANNER -> QUERY EXECUTOR
+    # ========================================================
+
+    workflow.add_edge(
+        "plan_query",
+        "execute_query",
+    )
+
+    # ========================================================
+    # QUERY EXECUTOR -> ANSWER GENERATOR
+    # ========================================================
+
+    workflow.add_edge(
+        "execute_query",
+        "generate_answer",
+    )
+
+    # ========================================================
+    # ANSWER GENERATOR -> END
+    # ========================================================
+
+    workflow.add_edge(
+        "generate_answer",
+        END,
+    )
+
+    # ========================================================
+    # COMPILE
+    # ========================================================
 
     graph = workflow.compile()
 
