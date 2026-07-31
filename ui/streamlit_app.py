@@ -11,10 +11,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(
-        0,
-        str(PROJECT_ROOT),
-    )
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 # ==========================================================
@@ -25,6 +22,9 @@ import pandas as pd
 import streamlit as st
 
 from src.agents.graph import build_graph
+from src.agents.conversation_graph import (
+    build_conversation_graph,
+)
 
 
 # ==========================================================
@@ -39,6 +39,193 @@ st.set_page_config(
 
 
 # ==========================================================
+# SESSION STATE
+# ==========================================================
+
+if "analysis_result" not in st.session_state:
+    st.session_state["analysis_result"] = None
+
+if "analysed_dataset" not in st.session_state:
+    st.session_state["analysed_dataset"] = None
+
+if "chat_messages" not in st.session_state:
+    st.session_state["chat_messages"] = []
+
+
+# ==========================================================
+# HELPER FUNCTIONS
+# ==========================================================
+
+def reset_analysis_state() -> None:
+    """
+    Clear analysis and conversational state.
+    """
+
+    st.session_state["analysis_result"] = None
+    st.session_state["analysed_dataset"] = None
+    st.session_state["chat_messages"] = []
+
+
+def reset_chat() -> None:
+    """
+    Clear only conversational history.
+    """
+
+    st.session_state["chat_messages"] = []
+
+
+def render_answer_details(
+    metadata: dict,
+) -> None:
+    """
+    Render evidence, key points, cautions, and optional
+    LLM diagnostics for a conversational answer.
+    """
+
+    if not isinstance(metadata, dict):
+        return
+
+    evidence_tools = metadata.get(
+        "evidence_tools",
+        [],
+    )
+
+    key_points = metadata.get(
+        "key_points",
+        [],
+    )
+
+    cautions = metadata.get(
+        "cautions",
+        [],
+    )
+
+    llm_used = metadata.get(
+        "llm_used"
+    )
+
+    llm_error = metadata.get(
+        "llm_error"
+    )
+
+    if not (
+        evidence_tools
+        or key_points
+        or cautions
+        or llm_error
+    ):
+        return
+
+    with st.expander(
+        "Evidence and details"
+    ):
+
+        if evidence_tools:
+
+            st.markdown(
+                "**Evidence tools**"
+            )
+
+            for tool in evidence_tools:
+                st.write(f"• {tool}")
+
+        if key_points:
+
+            st.markdown(
+                "**Key points**"
+            )
+
+            for point in key_points:
+                st.write(f"• {point}")
+
+        if cautions:
+
+            st.markdown(
+                "**Cautions**"
+            )
+
+            for caution in cautions:
+                st.warning(str(caution))
+
+        if llm_used is not None:
+
+            if llm_used:
+                st.caption(
+                    "LLM interpretation used."
+                )
+            else:
+                st.caption(
+                    "Deterministic fallback answer used."
+                )
+
+        if llm_error:
+
+            with st.expander(
+                "LLM diagnostic"
+            ):
+                st.code(str(llm_error))
+
+
+def build_conversation_state(
+    phase_one_state: dict,
+    question: str,
+) -> dict:
+    """
+    Build the minimum AgentState required by the
+    conversational analytics graph.
+    """
+
+    conversation_state = {
+        "user_question":
+            question,
+
+        "semantic_analysis":
+            phase_one_state.get(
+                "semantic_analysis",
+                {},
+            ),
+
+        "identifier_columns":
+            phase_one_state.get(
+                "identifier_columns",
+                [],
+            ),
+
+        "target_candidates":
+            phase_one_state.get(
+                "target_candidates",
+                [],
+            ),
+
+        "feature_columns":
+            phase_one_state.get(
+                "feature_columns",
+                [],
+            ),
+    }
+
+    original_dataframe = phase_one_state.get(
+        "dataframe"
+    )
+
+    cleaned_dataframe = phase_one_state.get(
+        "cleaned_dataframe"
+    )
+
+    if original_dataframe is not None:
+        conversation_state[
+            "dataframe"
+        ] = original_dataframe
+
+    if cleaned_dataframe is not None:
+        conversation_state[
+            "cleaned_dataframe"
+        ] = cleaned_dataframe
+
+    return conversation_state
+
+
+# ==========================================================
 # APPLICATION HEADER
 # ==========================================================
 
@@ -49,7 +236,8 @@ st.title(
 st.write(
     "Upload a CSV dataset and let the analytics engine "
     "automatically inspect, clean, analyse, visualise, "
-    "and generate AI-powered insights."
+    "generate AI-powered insights, and answer questions "
+    "about your data."
 )
 
 st.divider()
@@ -80,7 +268,6 @@ if uploaded_file is not None:
     # ------------------------------------------------------
 
     try:
-
         dataframe = pd.read_csv(
             uploaded_file
         )
@@ -227,11 +414,10 @@ if uploaded_file is not None:
             st.stop()
 
         # --------------------------------------------------
-        # BUILD LANGGRAPH WORKFLOW
+        # BUILD PHASE 1 LANGGRAPH
         # --------------------------------------------------
 
         try:
-
             graph = build_graph()
 
         except Exception as error:
@@ -293,6 +479,9 @@ if uploaded_file is not None:
             "analysed_dataset"
         ] = safe_filename
 
+        # New analysis = new conversation.
+        reset_chat()
+
         # --------------------------------------------------
         # SUCCESS
         # --------------------------------------------------
@@ -306,11 +495,11 @@ if uploaded_file is not None:
 # ANALYSIS RESULTS
 # ==========================================================
 
-if "analysis_result" in st.session_state:
+result = st.session_state.get(
+    "analysis_result"
+)
 
-    result = st.session_state[
-        "analysis_result"
-    ]
+if result:
 
     st.divider()
 
@@ -319,9 +508,8 @@ if "analysis_result" in st.session_state:
     )
 
     analysed_dataset = st.session_state.get(
-        "analysed_dataset",
-        "Dataset",
-    )
+        "analysed_dataset"
+    ) or "Dataset"
 
     st.caption(
         f"Analysed dataset: {analysed_dataset}"
@@ -333,77 +521,77 @@ if "analysis_result" in st.session_state:
 
     profile = result.get(
         "profile",
-        {}
+        {},
     )
 
     quality_report = result.get(
         "quality_report",
-        {}
+        {},
     )
 
     cleaning_report = result.get(
         "cleaning_report",
-        {}
+        {},
     )
 
     cleaning_validation = result.get(
         "cleaning_validation",
-        {}
+        {},
     )
 
     analysis_results = result.get(
         "analysis_results",
-        {}
+        {},
     )
 
     semantic_analysis = result.get(
         "semantic_analysis",
-        {}
+        {},
     )
 
     execution_report = result.get(
         "execution_report",
-        {}
+        {},
     )
 
     target_analysis = result.get(
         "target_analysis",
-        {}
+        {},
     )
 
     insights = result.get(
         "insights",
-        {}
+        {},
     )
 
     chart_paths = result.get(
         "chart_paths",
-        []
+        [],
     )
 
     final_report = result.get(
         "final_report",
-        ""
+        "",
     )
 
     report_path = result.get(
         "report_path",
-        ""
+        "",
     )
 
     numerical_summary = result.get(
         "numerical_summary",
-        {}
+        {},
     )
 
     categorical_summary = result.get(
         "categorical_summary",
-        {}
+        {},
     )
 
     correlation_matrix = result.get(
         "correlation_matrix",
-        {}
+        {},
     )
 
     # ======================================================
@@ -502,7 +690,6 @@ if "analysis_result" in st.session_state:
         if identifiers:
 
             for column in identifiers:
-
                 st.write(
                     f"• {column}"
                 )
@@ -522,7 +709,6 @@ if "analysis_result" in st.session_state:
         if features:
 
             for column in features:
-
                 st.write(
                     f"• {column}"
                 )
@@ -542,7 +728,6 @@ if "analysis_result" in st.session_state:
         if targets:
 
             for column in targets:
-
                 st.write(
                     f"• {column}"
                 )
@@ -725,10 +910,6 @@ if "analysis_result" in st.session_state:
 
                 if distribution:
 
-                    st.write(
-                        "**Distribution**"
-                    )
-
                     try:
 
                         distribution_df = pd.DataFrame(
@@ -818,7 +999,7 @@ if "analysis_result" in st.session_state:
 
         issues = quality_report.get(
             "issues",
-            []
+            [],
         )
 
         if issues:
@@ -1079,7 +1260,6 @@ if "analysis_result" in st.session_state:
                     information,
                     dict,
                 ):
-
                     continue
 
                 categorical_rows.append(
@@ -1187,10 +1367,6 @@ if "analysis_result" in st.session_state:
                 "were generated automatically."
             )
 
-            # ----------------------------------------------
-            # RESOLVE CHART PATHS
-            # ----------------------------------------------
-
             valid_charts = []
             missing_charts = []
 
@@ -1219,10 +1395,6 @@ if "analysis_result" in st.session_state:
                         str(chart_path)
                     )
 
-            # ----------------------------------------------
-            # DISPLAY CHARTS
-            # ----------------------------------------------
-
             if valid_charts:
 
                 for index in range(
@@ -1234,10 +1406,6 @@ if "analysis_result" in st.session_state:
                     chart_columns = st.columns(
                         2
                     )
-
-                    # --------------------------------------
-                    # LEFT CHART
-                    # --------------------------------------
 
                     left_chart = valid_charts[
                         index
@@ -1263,10 +1431,6 @@ if "analysis_result" in st.session_state:
                             str(left_chart),
                             use_container_width=True,
                         )
-
-                    # --------------------------------------
-                    # RIGHT CHART
-                    # --------------------------------------
 
                     if (
                         index + 1
@@ -1305,10 +1469,6 @@ if "analysis_result" in st.session_state:
                     "charts, but none of the files "
                     "could be found."
                 )
-
-            # ----------------------------------------------
-            # MISSING CHART FILES
-            # ----------------------------------------------
 
             if missing_charts:
 
@@ -1571,10 +1731,6 @@ if "analysis_result" in st.session_state:
                 "Final report generated successfully."
             )
 
-            # ----------------------------------------------
-            # REPORT INFORMATION
-            # ----------------------------------------------
-
             col1, col2 = st.columns(2)
 
             with col1:
@@ -1593,10 +1749,6 @@ if "analysis_result" in st.session_state:
                     ),
                 )
 
-            # ----------------------------------------------
-            # REPORT PREVIEW
-            # ----------------------------------------------
-
             st.markdown(
                 "### Report Preview"
             )
@@ -1608,10 +1760,6 @@ if "analysis_result" in st.session_state:
                 st.markdown(
                     final_report
                 )
-
-            # ----------------------------------------------
-            # DOWNLOAD REPORT
-            # ----------------------------------------------
 
             st.download_button(
                 label="Download Markdown Report",
@@ -1626,10 +1774,6 @@ if "analysis_result" in st.session_state:
             st.warning(
                 "No final report is available."
             )
-
-        # ----------------------------------------------
-        # SAVED REPORT PATH
-        # ----------------------------------------------
 
         if report_path:
 
@@ -1655,3 +1799,345 @@ if "analysis_result" in st.session_state:
                     "workflow state, but the file "
                     "could not be found on disk."
                 )
+
+
+    # ======================================================
+    # PHASE 2 — CONVERSATIONAL ANALYTICS
+    # ======================================================
+
+    st.divider()
+
+    chat_header_col, chat_action_col = st.columns(
+        [5, 1]
+    )
+
+    with chat_header_col:
+
+        st.header(
+            "💬 Chat with Your Data"
+        )
+
+    with chat_action_col:
+
+        if st.button(
+            "Clear Chat",
+            use_container_width=True,
+        ):
+
+            reset_chat()
+            st.rerun()
+
+    st.write(
+        "Ask natural-language questions about the analysed "
+        "dataset. The engine interprets your question, "
+        "plans the analysis, executes deterministic tools, "
+        "and generates an evidence-grounded answer."
+    )
+
+    st.caption(
+        "The dataset analysis above is reused for each "
+        "question; Phase 1 is not rerun."
+    )
+
+    # ------------------------------------------------------
+    # EXAMPLE QUESTIONS
+    # ------------------------------------------------------
+
+    with st.expander(
+        "Example questions"
+    ):
+
+        st.markdown(
+            """
+- What is the average income?
+- Show me the distribution of tenure.
+- Which factors are associated with churn?
+- Compare income and age.
+- What is the correlation between age and income?
+- How many customers are there?
+- Are there any missing values or duplicates?
+- Give me an overview of this dataset.
+"""
+        )
+
+    # ------------------------------------------------------
+    # CHAT HISTORY
+    # ------------------------------------------------------
+
+    chat_messages = st.session_state[
+        "chat_messages"
+    ]
+
+    if not chat_messages:
+
+        with st.chat_message(
+            "assistant"
+        ):
+
+            st.markdown(
+                "The dataset is ready. Ask me a question "
+                "about its statistics, distributions, "
+                "relationships, quality, or overall structure."
+            )
+
+    for message in chat_messages:
+
+        role = message.get(
+            "role",
+            "assistant",
+        )
+
+        content = message.get(
+            "content",
+            "",
+        )
+
+        with st.chat_message(
+            role
+        ):
+
+            st.markdown(
+                content
+            )
+
+            if role == "assistant":
+
+                render_answer_details(
+                    message.get(
+                        "metadata",
+                        {},
+                    )
+                )
+
+    # ------------------------------------------------------
+    # USER QUESTION
+    # ------------------------------------------------------
+
+    user_question = st.chat_input(
+        "Ask a question about your dataset..."
+    )
+
+    if user_question:
+
+        user_question = user_question.strip()
+
+        if user_question:
+
+            # ----------------------------------------------
+            # SAVE USER MESSAGE
+            # ----------------------------------------------
+
+            st.session_state[
+                "chat_messages"
+            ].append(
+                {
+                    "role":
+                        "user",
+
+                    "content":
+                        user_question,
+                }
+            )
+
+            # ----------------------------------------------
+            # SHOW USER MESSAGE
+            # ----------------------------------------------
+
+            with st.chat_message(
+                "user"
+            ):
+
+                st.markdown(
+                    user_question
+                )
+
+            # ----------------------------------------------
+            # CREATE CONVERSATION STATE
+            # ----------------------------------------------
+
+            conversation_state = (
+                build_conversation_state(
+                    phase_one_state=result,
+                    question=user_question,
+                )
+            )
+
+            # ----------------------------------------------
+            # GENERATE ANSWER
+            # ----------------------------------------------
+
+            with st.chat_message(
+                "assistant"
+            ):
+
+                with st.spinner(
+                    "Analysing your question..."
+                ):
+
+                    try:
+
+                        conversation_graph = (
+                            build_conversation_graph()
+                        )
+
+                        conversation_result = (
+                            conversation_graph.invoke(
+                                conversation_state
+                            )
+                        )
+
+                        query_answer = (
+                            conversation_result.get(
+                                "query_answer",
+                                {},
+                            )
+                        )
+
+                        if not isinstance(
+                            query_answer,
+                            dict,
+                        ):
+
+                            raise RuntimeError(
+                                "The conversation graph "
+                                "returned an invalid answer."
+                            )
+
+                        answer_text = (
+                            query_answer.get(
+                                "answer",
+                                ""
+                            )
+                        )
+
+                        if answer_text is None:
+                            answer_text = ""
+
+                        if not isinstance(
+                            answer_text,
+                            str,
+                        ):
+
+                            answer_text = str(
+                                answer_text
+                            )
+
+                        answer_text = (
+                            answer_text.strip()
+                        )
+
+                        if not answer_text:
+
+                            answer_text = (
+                                "The analytics engine completed "
+                                "the analysis but did not return "
+                                "a readable answer."
+                            )
+
+                        # ----------------------------------
+                        # DISPLAY ANSWER
+                        # ----------------------------------
+
+                        st.markdown(
+                            answer_text
+                        )
+
+                        metadata = {
+                            "evidence_tools":
+                                query_answer.get(
+                                    "evidence_tools",
+                                    [],
+                                ),
+
+                            "key_points":
+                                query_answer.get(
+                                    "key_points",
+                                    [],
+                                ),
+
+                            "cautions":
+                                query_answer.get(
+                                    "cautions",
+                                    [],
+                                ),
+
+                            "llm_used":
+                                query_answer.get(
+                                    "llm_used"
+                                ),
+
+                            "llm_error":
+                                query_answer.get(
+                                    "llm_error"
+                                ),
+                        }
+
+                        render_answer_details(
+                            metadata
+                        )
+
+                        # ----------------------------------
+                        # STORE ASSISTANT MESSAGE
+                        # ----------------------------------
+
+                        st.session_state[
+                            "chat_messages"
+                        ].append(
+                            {
+                                "role":
+                                    "assistant",
+
+                                "content":
+                                    answer_text,
+
+                                "metadata":
+                                    metadata,
+                            }
+                        )
+
+                    except Exception as error:
+
+                        error_message = (
+                            "The conversational analytics "
+                            "workflow could not complete "
+                            "this question."
+                        )
+
+                        st.error(
+                            error_message
+                        )
+
+                        with st.expander(
+                            "Technical details"
+                        ):
+
+                            st.exception(
+                                error
+                            )
+
+                        st.session_state[
+                            "chat_messages"
+                        ].append(
+                            {
+                                "role":
+                                    "assistant",
+
+                                "content":
+                                    error_message,
+
+                                "metadata": {},
+                            }
+                        )
+
+
+# ==========================================================
+# EMPTY STATE
+# ==========================================================
+
+else:
+
+    st.info(
+        "Upload a CSV dataset and run the analysis to "
+        "generate analytics results and unlock "
+        "conversational analytics."
+    )
