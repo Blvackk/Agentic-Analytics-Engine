@@ -177,10 +177,12 @@ def get_group_summary(
     }
 
 # ==========================================================
-# Phase 3
-# Statistical Inference
+ #CORRELATION ANALYSIS
 # ==========================================================
 
+# ==========================================================
+# CORRELATION ANALYSIS
+# ==========================================================
 def pearson_correlation(
     dataframe: pd.DataFrame,
     column_x: str,
@@ -335,6 +337,10 @@ def spearman_correlation(
         ),
     }
 
+# ==========================================================
+# HYPOTHESIS TESTING
+# ==========================================================
+
 def independent_t_test(
     dataframe: pd.DataFrame,
     value_column: str,
@@ -431,6 +437,101 @@ def independent_t_test(
         "significant": bool(p_value < 0.05),
     }
 
+def mann_whitney_test(
+    dataframe: pd.DataFrame,
+    value_column: str,
+    group_column: str,
+) -> dict:
+    """
+    Perform a Mann-Whitney U Test between two groups.
+
+    Parameters
+    ----------
+    dataframe : pd.DataFrame
+        Input dataset.
+
+    value_column : str
+        Numeric column.
+
+    group_column : str
+        Binary categorical grouping column.
+
+    Returns
+    -------
+    dict
+        Mann-Whitney U statistics.
+    """
+
+    if value_column not in dataframe.columns:
+        raise ValueError(
+            f"Column '{value_column}' does not exist."
+        )
+
+    if group_column not in dataframe.columns:
+        raise ValueError(
+            f"Column '{group_column}' does not exist."
+        )
+
+    if not pd.api.types.is_numeric_dtype(
+        dataframe[value_column]
+    ):
+        raise ValueError(
+            f"Column '{value_column}' must be numeric."
+        )
+
+    clean_dataframe = (
+        dataframe[
+            [value_column, group_column]
+        ]
+        .dropna()
+    )
+
+    groups = (
+        clean_dataframe[group_column]
+        .unique()
+        .tolist()
+    )
+
+    if len(groups) != 2:
+        raise ValueError(
+            "Mann-Whitney U Test requires exactly two groups."
+        )
+
+    group_1 = clean_dataframe[
+        clean_dataframe[group_column] == groups[0]
+    ][value_column]
+
+    group_2 = clean_dataframe[
+        clean_dataframe[group_column] == groups[1]
+    ][value_column]
+
+    u_statistic, p_value = stats.mannwhitneyu(
+        group_1,
+        group_2,
+        alternative="two-sided",
+    )
+
+    return {
+        "method": "mann_whitney_u",
+        "value_column": value_column,
+        "group_column": group_column,
+        "group_1": str(groups[0]),
+        "group_2": str(groups[1]),
+        "group_1_size": len(group_1),
+        "group_2_size": len(group_2),
+        "u_statistic": round(
+            float(u_statistic),
+            4,
+        ),
+        "p_value": round(
+            float(p_value),
+            6,
+        ),
+        "significant": bool(
+            p_value < 0.05
+        ),
+    }
+
 def chi_square_test(
     dataframe: pd.DataFrame,
     column_x: str,
@@ -482,6 +583,10 @@ def chi_square_test(
         "contingency_table": contingency_table.to_dict(),
         "expected_frequencies": expected.round(4).tolist(),
     }
+
+# ==========================================================
+# DISTRIBUTION ANALYSIS
+# ==========================================================
 
 def calculate_skewness(
     dataframe: pd.DataFrame,
@@ -594,6 +699,10 @@ def calculate_kurtosis(
         "observations": len(values),
     }
 
+# ==========================================================
+# OUTLIER DETECTION
+# ==========================================================
+
 def detect_iqr_outliers(
     dataframe: pd.DataFrame,
     column: str,
@@ -660,6 +769,9 @@ def detect_iqr_outliers(
         "observations": len(values),
     }
 
+# ==========================================================
+# CONFIDENCE INTERVALS
+# ==========================================================
 def confidence_interval_mean(
     dataframe: pd.DataFrame,
     column: str,
@@ -720,3 +832,233 @@ def confidence_interval_mean(
         "upper_bound": round(float(upper), 4),
         "observations": len(values),
     }
+
+# ==========================================================
+# ADVANCED HYPOTHESIS TESTING
+# ==========================================================
+def anova_test(
+    dataframe: pd.DataFrame,
+    value_column: str,
+    group_column: str,
+) -> dict:
+    """
+    Perform a one-way ANOVA test.
+
+    Parameters
+    ----------
+    dataframe : pd.DataFrame
+        Input dataset.
+
+    value_column : str
+        Numeric column.
+
+    group_column : str
+        Categorical grouping column.
+
+    Returns
+    -------
+    dict
+        One-way ANOVA statistics.
+    """
+
+    if value_column not in dataframe.columns:
+        raise ValueError(
+            f"Column '{value_column}' does not exist."
+        )
+
+    if group_column not in dataframe.columns:
+        raise ValueError(
+            f"Column '{group_column}' does not exist."
+        )
+
+    if not pd.api.types.is_numeric_dtype(
+        dataframe[value_column]
+    ):
+        raise ValueError(
+            f"Column '{value_column}' must be numeric."
+        )
+
+    clean_dataframe = dataframe[
+        [value_column, group_column]
+    ].dropna()
+
+    grouped_data = [
+        group[value_column].values
+        for _, group in clean_dataframe.groupby(group_column)
+    ]
+
+    if len(grouped_data) < 3:
+        raise ValueError(
+            "ANOVA requires at least three groups."
+        )
+
+    f_statistic, p_value = stats.f_oneway(
+        *grouped_data
+    )
+
+    group_sizes = {
+        str(name): len(group)
+        for name, group in clean_dataframe.groupby(group_column)
+    }
+
+    group_means = {
+        str(name): round(
+            float(group[value_column].mean()),
+            4,
+        )
+        for name, group in clean_dataframe.groupby(group_column)
+    }
+
+    return {
+        "method": "anova",
+        "value_column": value_column,
+        "group_column": group_column,
+        "groups": len(grouped_data),
+        "group_sizes": group_sizes,
+        "group_means": group_means,
+        "f_statistic": round(
+            float(f_statistic),
+            4,
+        ),
+        "p_value": round(
+            float(p_value),
+            6,
+        ),
+        "significant": bool(
+            p_value < 0.05
+        ),
+        "observations": len(
+            clean_dataframe
+        ),
+    }
+
+# ==========================================================
+# NORMALITY TESTING
+# ==========================================================
+def normality_test(
+    dataframe: pd.DataFrame,
+    column: str,
+) -> dict:
+    """
+    Perform the Shapiro-Wilk normality test.
+
+    Parameters
+    ----------
+    dataframe : pd.DataFrame
+        Input dataset.
+
+    column : str
+        Numeric column.
+
+    Returns
+    -------
+    dict
+        Shapiro-Wilk test statistics.
+    """
+
+    if column not in dataframe.columns:
+        raise ValueError(
+            f"Column '{column}' does not exist."
+        )
+
+    if not pd.api.types.is_numeric_dtype(
+        dataframe[column]
+    ):
+        raise ValueError(
+            f"Column '{column}' must be numeric."
+        )
+
+    values = dataframe[column].dropna()
+
+    if len(values) < 3:
+        raise ValueError(
+            "Shapiro-Wilk requires at least 3 observations."
+        )
+
+    statistic, p_value = stats.shapiro(values)
+
+    return {
+        "method": "shapiro_wilk",
+        "column": column,
+        "statistic": round(float(statistic), 4),
+        "p_value": round(float(p_value), 6),
+        "normal_distribution": bool(
+            p_value > 0.05
+        ),
+        "observations": len(values),
+    }
+
+# ==========================================================
+# OUTLIER DETECTION
+# ==========================================================
+def detect_zscore_outliers(
+    dataframe: pd.DataFrame,
+    column: str,
+    threshold: float = 3.0,
+) -> dict:
+    """
+    Detect outliers using Z-score.
+    """
+
+    if column not in dataframe.columns:
+        raise ValueError(
+            f"Column '{column}' does not exist."
+        )
+
+    if not pd.api.types.is_numeric_dtype(
+        dataframe[column]
+    ):
+        raise ValueError(
+            f"Column '{column}' must be numeric."
+        )
+
+    values = dataframe[column].dropna()
+
+    if len(values) < 3:
+        raise ValueError(
+            "At least three observations are required."
+        )
+
+    z_scores = np.abs(
+        stats.zscore(values)
+    )
+
+    outliers = values[
+        z_scores > threshold
+    ]
+
+    return {
+        "method": "zscore_outlier_detection",
+        "column": column,
+        "threshold": threshold,
+        "outlier_count": int(len(outliers)),
+        "outlier_values": outliers.tolist(),
+        "observations": len(values),
+    }
+
+
+
+
+
+
+
+
+
+__all__ = [
+    "get_numerical_summary",
+    "get_categorical_summary",
+    "get_correlation_matrix",
+    "get_group_summary",
+    "pearson_correlation",
+    "spearman_correlation",
+    "independent_t_test",
+    "chi_square_test",
+    "calculate_skewness",
+    "calculate_kurtosis",
+    "detect_iqr_outliers",
+    "confidence_interval_mean",
+    "anova_test",
+    "mann_whitney_test",
+    "normality_test",
+    "detect_zscore_outliers",
+]

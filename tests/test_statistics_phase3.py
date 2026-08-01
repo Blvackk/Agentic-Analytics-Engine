@@ -328,3 +328,160 @@ assert result["upper_bound"] > result["mean"]
 print(
     "\nConfidence Interval: PASSED"
 )
+
+print(
+    "\n========== ANOVA ==========\n"
+)
+
+from src.tools.statistics import (
+    anova_test,
+)
+
+dataframe = pd.DataFrame(
+    {
+        "department": [
+            "IT","IT","IT",
+            "HR","HR","HR",
+            "Sales","Sales","Sales",
+        ],
+        "salary": [
+            60,62,59,
+            45,47,46,
+            80,82,84,
+        ]
+    }
+)
+
+result = anova_test(
+    dataframe,
+    "salary",
+    "department",
+)
+
+print(result)
+
+assert result["method"] == "anova"
+assert result["groups"] == 3
+assert result["observations"] == 9
+
+print(
+    "\nANOVA: PASSED"
+)
+
+print(
+    "\n========== MANN-WHITNEY U TEST ==========\n"
+)
+
+from src.tools.statistics import (
+    mann_whitney_test,
+)
+
+dataframe = pd.DataFrame(
+    {
+        "group": [
+            "A","A","A","A",
+            "B","B","B","B",
+        ],
+        "salary": [
+            42,
+            45,
+            47,
+            44,
+            72,
+            75,
+            73,
+            74,
+        ],
+    }
+)
+
+result = mann_whitney_test(
+    dataframe,
+    "salary",
+    "group",
+)
+
+print(result)
+
+assert result["method"] == "mann_whitney_u"
+assert result["group_1_size"] == 4
+assert result["group_2_size"] == 4
+
+print(
+    "\nMann-Whitney U Test: PASSED"
+)
+
+print(
+    "\n========== SHAPIRO-WILK TEST ==========\n"
+)
+
+from src.tools.statistics import (
+    normality_test,
+)
+
+dataframe = pd.DataFrame(
+    {
+        "salary": [
+            50,
+            52,
+            49,
+            51,
+            48,
+            53,
+            50,
+            54,
+        ]
+    }
+)
+
+result = normality_test(
+    dataframe,
+    "salary",
+)
+
+print(result)
+
+assert result["method"] == "shapiro_wilk"
+assert result["column"] == "salary"
+assert result["observations"] == 8
+
+print(
+    "\nShapiro-Wilk Test: PASSED"
+)
+
+print(
+    "\n========== Z-SCORE OUTLIER DETECTION ==========\n"
+)
+
+from src.tools.statistics import (
+    detect_zscore_outliers,
+)
+
+dataframe = pd.DataFrame(
+    {
+        "salary": [
+            50,
+            52,
+            49,
+            51,
+            48,
+            53,
+            54,
+            250,
+        ]
+    }
+)
+
+result = detect_zscore_outliers(
+    dataframe,
+    "salary",
+)
+
+print(result)
+
+assert result["method"] == "zscore_outlier_detection"
+assert result["column"] == "salary"
+
+print(
+    "\nZ-Score Outlier Detection: PASSED"
+)
