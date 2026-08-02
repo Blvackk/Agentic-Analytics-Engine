@@ -43,11 +43,16 @@ TARGET_NAMES = {
     "target",
     "label",
     "class",
-    "outcome",
+    "y",
     "churn",
+    "exited",
+    "survived",
     "default",
     "fraud",
-    "survived",
+    "loan_status",
+    "purchase",
+    "attrition",
+    "left",
     "response",
 }
 
@@ -153,12 +158,40 @@ def _looks_like_target(
     column: str,
 ) -> bool:
     """
-    Check whether a column name resembles a prediction target.
+    Check whether a column name resembles
+    a prediction target.
     """
 
-    normalized_name = column.strip().lower()
+    normalized_name = (
+        column.strip()
+        .lower()
+        .replace(" ", "_")
+    )
 
-    return normalized_name in TARGET_NAMES
+    if normalized_name in TARGET_NAMES:
+        return True
+
+    target_keywords = (
+        "target",
+        "label",
+        "class",
+        "churn",
+        "exit",
+        "exited",
+        "attrition",
+        "fraud",
+        "default",
+        "loan",
+        "survived",
+        "purchase",
+        "response",
+        "left",
+    )
+
+    return any(
+        keyword in normalized_name
+        for keyword in target_keywords
+    )
 
 
 # ==========================================================

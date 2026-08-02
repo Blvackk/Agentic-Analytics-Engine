@@ -26,7 +26,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.agents.graph import (
     build_graph,
-    build_conversation_graph,
 )
 
 from ui.components.overview import render_overview
@@ -113,23 +112,7 @@ def get_phase1_graph():
     """
 
     return build_graph()
-
-
-@st.cache_resource
-def get_conversation_graph():
-    """
-    Build the conversational analytics graph once per
-    Streamlit process.
-    """
-
-    return build_conversation_graph()
-
-
 phase1_graph = get_phase1_graph()
-
-conversation_graph = (
-    get_conversation_graph()
-)
 
 
 # ============================================================
@@ -166,8 +149,6 @@ def initialise_session_state() -> None:
         "analyst_messages":
             [],
 
-        "analyst_pending_question":
-            None,
     }
 
     for key, value in defaults.items():
@@ -423,7 +404,23 @@ def run_analysis(
             "active_page"
         ] = "Overview"
 
-        reset_conversation()
+        from src.agents.semantic_analyzer import (
+            analyze_semantics,
+        )
+
+        dataframe = result.get(
+            "cleaned_dataframe",
+        )
+
+        if dataframe is None:
+
+            dataframe = result.get(
+                "dataframe",
+            )
+
+        result["semantic_analysis"] = analyze_semantics(
+            dataframe,
+        )
 
         return True
 
@@ -971,11 +968,18 @@ def render_workspace(
 
     elif page == "AI Analyst":
 
+        dataframe = get_active_dataframe()
+
+        if dataframe is None:
+
+            st.warning(
+                "No dataset available."
+            )
+
+            return
+
         render_analyst(
-            state=state,
-            conversation_graph=(
-                conversation_graph
-            ),
+            dataframe
         )
 
     elif page == "Report":
