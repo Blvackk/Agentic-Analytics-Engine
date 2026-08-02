@@ -1,43 +1,48 @@
 # 🤖 Agentic Analytics Engine
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Python-3.11+-blue.svg">
-  <img src="https://img.shields.io/badge/Streamlit-WebApp-red.svg">
-  <img src="https://img.shields.io/badge/Scikit--Learn-Machine%20Learning-orange.svg">
-  <img src="https://img.shields.io/badge/XGBoost-Enabled-green.svg">
-  <img src="https://img.shields.io/badge/LightGBM-Enabled-brightgreen.svg">
-  <img src="https://img.shields.io/badge/Status-Active-success.svg">
+
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)
+![Scikit Learn](https://img.shields.io/badge/Scikit--Learn-ML-F7931E?style=for-the-badge&logo=scikitlearn&logoColor=white)
+![XGBoost](https://img.shields.io/badge/XGBoost-Enabled-1F77B4?style=for-the-badge)
+![LightGBM](https://img.shields.io/badge/LightGBM-Enabled-9ACD32?style=for-the-badge)
+![CatBoost](https://img.shields.io/badge/CatBoost-Enabled-FFD700?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-Active-success?style=for-the-badge)
+
 </p>
 
-## 🚀 Overview
+---
 
-**Agentic Analytics Engine** is an AI-powered analytics platform that allows users to analyze datasets using natural language.
+# 🚀 Overview
 
-Instead of manually writing code for EDA, statistics, visualizations, or machine learning, users simply ask questions in plain English.
+**Agentic Analytics Engine** is a modular AI-powered analytics platform that enables users to analyze datasets using natural language.
 
-The system automatically understands the intent, routes the request to the appropriate AI agent, executes the analysis, and returns professional insights.
+Instead of writing code for statistics, visualizations, or machine learning, users simply ask questions such as:
+
+> **"Predict customer churn"**
+
+> **"Show histogram of Age"**
+
+> **"What is the correlation between Age and Balance?"**
+
+The system automatically understands the user's intent, routes the request to the appropriate analytics agent, performs the analysis, and generates professional insights.
 
 ---
 
-# ✨ Features
+# ✨ Current Features
 
-### 🧠 AI Analyst
+## 🤖 AI Analyst
 
-- Natural Language Analytics
-- Chat-based interface
-- Intelligent query routing
-
-Example:
-
-> Predict customer churn
-
-> Show histogram of Age
-
-> What is the correlation between Age and Balance?
+- Natural language analytics
+- Conversational interface
+- Intelligent request routing
+- Downloadable analysis
+- Agent execution trace
 
 ---
 
-### 🧩 Semantic Analyzer
+## 🧠 Semantic Analyzer
 
 Automatically detects
 
@@ -47,60 +52,64 @@ Automatically detects
 - Target columns
 - Feature columns
 
-Supports intelligent target detection for datasets like:
+Supports intelligent target detection for datasets such as
 
 - Customer Churn
 - HR Attrition
-- Titanic Survival
 - Loan Default
 - Fraud Detection
+- Titanic Survival
 
 ---
 
-### 📊 Statistics Agent
+## 📊 Statistics Agent
 
-Automatically performs
+Supports
 
 - Descriptive Statistics
 - Correlation Analysis
-- Statistical Insights
+- Summary Statistics
+- Statistical Planning
+- Insight Generation
 - Business Recommendations
 
 ---
 
-### 📈 Visualization Agent
+## 📈 Visualization Agent
 
 Automatically generates
 
-- Histograms
-- Scatter Plots
-- Bar Charts
-- Box Plots
+- Histogram
+- Scatter Plot
+- Bar Chart
+- Box Plot
 
-with AI-generated interpretations.
+along with AI-generated interpretations.
 
 ---
 
-### 🤖 Machine Learning Agent
+## 🤖 Machine Learning Agent
 
-Supports automatic
+Automatically performs
 
 - ML Problem Detection
-- Target Detection
+- Classification / Regression Planning
+- Automatic Target Detection
 - Feature Selection
-- Data Preprocessing
 - Missing Value Handling
-- Feature Scaling
 - One-Hot Encoding
+- Feature Scaling
 - Train/Test Split
-- Model Training
+- Multi-Model Training
 - Best Model Selection
+- Performance Evaluation
+- AI-generated ML Insights
 
 ---
 
-## 🏆 Supported Models
+# 🏆 Supported Machine Learning Models
 
-### Classification
+## Classification
 
 - Logistic Regression
 - Decision Tree
@@ -111,7 +120,9 @@ Supports automatic
 - LightGBM
 - CatBoost
 
-### Regression
+---
+
+## Regression
 
 - Linear Regression
 - Decision Tree Regressor
@@ -127,22 +138,22 @@ Supports automatic
 # 🏗️ Architecture
 
 ```
-                  User Question
-                         │
-                         ▼
-               Semantic Analyzer
-                         │
-                         ▼
-                 Intelligent Router
-         ┌───────────┼───────────┐
-         ▼           ▼           ▼
- Statistics Agent Visualization ML Agent
-         │           │           │
-         └───────────┼───────────┘
-                     ▼
-              AI Generated Insights
-                     ▼
-              Streamlit Dashboard
+                    User Question
+                           │
+                           ▼
+                 Semantic Analyzer
+                           │
+                           ▼
+                  Intelligent Router
+        ┌──────────────────┼──────────────────┐
+        ▼                  ▼                  ▼
+ Statistics Agent   Visualization Agent   Machine Learning Agent
+        │                  │                  │
+        └──────────────────┼──────────────────┘
+                           ▼
+                Insight Generation Layer
+                           ▼
+                  Streamlit AI Analyst
 ```
 
 ---
@@ -153,20 +164,30 @@ Supports automatic
 Agentic-Analytics-Engine/
 
 ├── data/
-├── src/
 │
-├── agents/
+├── src/
+│   ├── agents/
+│   │
 │   ├── router.py
 │   ├── router_graph.py
 │   ├── semantic_analyzer.py
-│   ├── statistical_*.py
-│   ├── visualization_*.py
+│   │
+│   ├── statistical_planner.py
+│   ├── statistical_executor.py
+│   ├── statistical_graph.py
+│   ├── statistical_insight.py
+│   │
+│   ├── visualization_planner.py
+│   ├── visualization_executor.py
+│   ├── visualization_graph.py
+│   ├── visualization_insight.py
+│   │
 │   ├── ml_planner.py
 │   ├── ml_executor.py
 │   ├── ml_graph.py
 │   └── ml_insight.py
 │
-├── tools/
+├── src/tools/
 │   ├── statistics.py
 │   ├── visualization.py
 │   └── ml_models.py
@@ -174,6 +195,16 @@ Agentic-Analytics-Engine/
 ├── ui/
 │   ├── streamlit_app.py
 │   └── components/
+│       ├── analyst.py
+│       ├── analyst_chat.py
+│       ├── analyst_router.py
+│       ├── analyst_renderer.py
+│       ├── analyst_statistics.py
+│       ├── analyst_visualization.py
+│       ├── analyst_ml.py
+│       ├── analyst_download.py
+│       ├── analyst_trace.py
+│       └── analyst_state.py
 │
 ├── tests/
 │
@@ -191,7 +222,6 @@ cd Agentic-Analytics-Engine
 
 python -m venv .venv
 
-source .venv/bin/activate
 # Windows
 .venv\Scripts\activate
 
@@ -208,7 +238,7 @@ streamlit run ui/streamlit_app.py
 
 ---
 
-# 🧪 Example Questions
+# 💬 Example Questions
 
 ## Statistics
 
@@ -250,49 +280,53 @@ Train a classification model
 
 ---
 
-# 📊 Machine Learning Pipeline
+# 📊 Machine Learning Workflow
 
 ```
 Dataset
-    │
-    ▼
+   │
+   ▼
 Semantic Analysis
-    │
-    ▼
+   │
+   ▼
 Target Detection
-    │
-    ▼
+   │
+   ▼
 Feature Selection
-    │
-    ▼
+   │
+   ▼
 Preprocessing
-    │
-    ▼
+   │
+   ▼
 Train/Test Split
-    │
-    ▼
+   │
+   ▼
 Multiple Models
-    │
-    ▼
+   │
+   ▼
 Performance Evaluation
-    │
-    ▼
+   │
+   ▼
 Best Model Selection
+   │
+   ▼
+AI-generated Insights
 ```
 
 ---
 
 # 🧪 Testing
 
-The project includes unit tests for
+The project includes dedicated tests for
 
 - Semantic Analyzer
 - Router
 - Statistics Agent
 - Visualization Agent
-- Machine Learning Planner
-- Machine Learning Executor
-- Machine Learning Graph
+- ML Planner
+- ML Executor
+- ML Graph
+- ML Insight
 - Model Registry
 
 Run all tests
@@ -303,42 +337,13 @@ pytest
 
 ---
 
-# 🚀 Roadmap
-
-### ✅ Completed
-
-- AI Analyst
-- Semantic Analyzer
-- Statistics Agent
-- Visualization Agent
-- Machine Learning Agent
-- Model Registry
-- Streamlit UI
-
-### 🔄 In Progress
-
-- Model Comparison Dashboard
-- SHAP Explainability
-- MLflow Experiment Tracking
-- PDF Report Generation
-
-### 📅 Planned
-
-- FastAPI Backend
-- Docker Support
-- GitHub Actions CI/CD
-- Multi-Agent Orchestration
-- LLM-powered Recommendations
-
----
-
 # 🛠️ Tech Stack
 
 ### Programming
 
 - Python
 
-### Data Science
+### Data Processing
 
 - Pandas
 - NumPy
@@ -346,7 +351,7 @@ pytest
 
 ### Machine Learning
 
-- Scikit-Learn
+- Scikit-learn
 - XGBoost
 - LightGBM
 - CatBoost
@@ -360,17 +365,45 @@ pytest
 
 - Streamlit
 
-### AI
+---
 
-- Rule-Based Router
-- Semantic Analysis
-- Multi-Agent Architecture
+# 🚀 Current Status (v0.3.0)
+
+| Component | Status |
+|-----------|--------|
+| Semantic Analyzer | ✅ |
+| Intelligent Router | ✅ |
+| Statistics Agent | ✅ |
+| Visualization Agent | ✅ |
+| Machine Learning Agent | ✅ |
+| AI Analyst UI | ✅ |
+| Multi-Model Training | ✅ |
+| Unit Tests | ✅ |
 
 ---
 
-# 📜 License
+# 🗺️ Roadmap
 
-MIT License
+### ✅ Completed
+
+- Semantic Analyzer
+- Intelligent Router
+- Statistics Agent
+- Visualization Agent
+- Machine Learning Agent
+- Streamlit AI Analyst
+- Model Registry
+- Natural Language Query Processing
+
+### 🔄 Next Milestones
+
+- SHAP Explainability
+- Model Comparison Dashboard
+- MLflow Experiment Tracking
+- PDF Report Generation
+- FastAPI Backend
+- Docker Support
+- GitHub Actions CI/CD
 
 ---
 
@@ -378,9 +411,7 @@ MIT License
 
 **Pratik Lagishetty**
 
-GitHub
-
-https://github.com/Blvackk
+GitHub: https://github.com/Blvackk
 
 ---
 
