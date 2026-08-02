@@ -1,3 +1,4 @@
+#router_graph.py
 """
 Router Graph.
 
@@ -18,6 +19,9 @@ from src.agents.statistical_graph import (
 )
 from src.agents.visualization_graph import (
     run_visualization_analysis,
+)
+from src.agents.ml_graph import (
+    run_machine_learning,
 )
 
 
@@ -83,18 +87,20 @@ def run_router(
         }
 
     # -----------------------------------------
-    # Machine Learning Agent (Placeholder)
+    # Machine Learning Agent
     # -----------------------------------------
 
     if route == "machine_learning":
 
+        result = run_machine_learning(
+            dataframe=dataframe,
+            question=question,
+            semantic_analysis=semantic_analysis,
+        )
+
         return {
             "route": route,
-            "response": {
-                "message": (
-                    "Machine Learning Agent is under development."
-                )
-            },
+            "response": result,
         }
 
     # -----------------------------------------
