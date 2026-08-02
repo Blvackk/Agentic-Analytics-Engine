@@ -465,3 +465,12 @@ def create_correlation_heatmap(
     plt.close(fig)
 
     return str(output_path)
+
+
+__all__ = [
+    "create_histogram",
+    "create_boxplot",
+    "create_bar_chart",
+    "create_scatter_plot",
+    "create_correlation_heatmap",
+]
