@@ -89,3 +89,39 @@ assert (
 )
 
 print("\nRouter Graph: PASSED")
+
+# ==================================================
+# Visualization Route
+# ==================================================
+
+print("\n========== VISUALIZATION ROUTE ==========\n")
+
+question = "Show histogram of income"
+
+semantic_analysis = {
+    "selected_columns": [
+        "income",
+    ],
+    "numeric_columns": [
+        "age",
+        "income",
+    ],
+    "categorical_columns": [],
+}
+
+result = run_router(
+    dataframe=dataframe,
+    question=question,
+    semantic_analysis=semantic_analysis,
+)
+
+print(result)
+
+assert result["route"] == "visualization"
+
+assert (
+    result["response"]["result"]["method"]
+    == "histogram"
+)
+
+print("\nVisualization Route: PASSED")

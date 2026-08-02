@@ -16,6 +16,9 @@ from src.agents.router import detect_route
 from src.agents.statistical_graph import (
     run_statistical_analysis,
 )
+from src.agents.visualization_graph import (
+    run_visualization_analysis,
+)
 
 
 def run_router(
@@ -63,18 +66,20 @@ def run_router(
         }
 
     # -----------------------------------------
-    # Visualization Agent (Placeholder)
+    # Visualization Agent
     # -----------------------------------------
 
     if route == "visualization":
 
+        result = run_visualization_analysis(
+            dataframe=dataframe,
+            question=question,
+            semantic_analysis=semantic_analysis,
+        )
+
         return {
             "route": route,
-            "response": {
-                "message": (
-                    "Visualization Agent is under development."
-                )
-            },
+            "response": result,
         }
 
     # -----------------------------------------
