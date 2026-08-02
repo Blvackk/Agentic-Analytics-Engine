@@ -1,667 +1,387 @@
+# 🤖 Agentic Analytics Engine
 
-# Agentic Analytics Engine
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.11+-blue.svg">
+  <img src="https://img.shields.io/badge/Streamlit-WebApp-red.svg">
+  <img src="https://img.shields.io/badge/Scikit--Learn-Machine%20Learning-orange.svg">
+  <img src="https://img.shields.io/badge/XGBoost-Enabled-green.svg">
+  <img src="https://img.shields.io/badge/LightGBM-Enabled-brightgreen.svg">
+  <img src="https://img.shields.io/badge/Status-Active-success.svg">
+</p>
 
-An AI-powered autonomous data analytics system that takes a raw CSV dataset and performs an end-to-end analytical workflow including data profiling, quality assessment, automated cleaning, semantic column understanding, statistical analysis, EDA planning, visualisation, AI-generated insights, and report generation.
+## 🚀 Overview
 
-The workflow is orchestrated using **LangGraph**, while a local **Ollama LLM** provides semantic reasoning and analytical interpretation.
+**Agentic Analytics Engine** is an AI-powered analytics platform that allows users to analyze datasets using natural language.
 
----
+Instead of manually writing code for EDA, statistics, visualizations, or machine learning, users simply ask questions in plain English.
 
-## Overview
-
-Traditional exploratory data analysis requires analysts to manually inspect datasets, identify data-quality problems, clean the data, select appropriate analyses, generate visualisations, interpret results, and prepare reports.
-
-The **Agentic Analytics Engine** automates this workflow through specialised components coordinated as an analytics pipeline.
-
-Instead of sending raw data directly to an LLM, the system uses Python-based analytical tools to calculate statistics and perform transformations first. The LLM then interprets structured analytical results to generate grounded insights.
-
----
-
-## Phase 1 — Automated Analytics Pipeline
-
-Phase 1 implements the complete automated analytics workflow:
-
-```text
-CSV Dataset
-     │
-     ▼
-Dataset Loading
-     │
-     ▼
-Dataset Profiling
-     │
-     ▼
-Data Quality Analysis
-     │
-     ▼
-Cleaning Required?
-   /        \
- Yes         No
-  │           │
-  ▼           │
-Cleaning      │
-  │           │
-  ▼           │
-Validation    │
-   \         /
-     ▼
-Semantic Analysis
-     │
-     ├── Identifier Detection
-     ├── Target Detection
-     └── Feature Detection
-     │
-     ▼
-Statistical Analysis
-     │
-     ▼
-EDA Planner
-     │
-     ▼
-EDA Executor
-     │
-     ├── Histograms
-     ├── Boxplots
-     ├── Bar Charts
-     ├── Scatter Plots
-     └── Correlation Heatmap
-     │
-     ▼
-Target Analysis
-     │
-     ▼
-LLM Insight Generation
-     │
-     ▼
-Report Generation
-     │
-     ▼
-Streamlit Dashboard
-```
+The system automatically understands the intent, routes the request to the appropriate AI agent, executes the analysis, and returns professional insights.
 
 ---
 
-## Key Features
+# ✨ Features
 
-### Automated Dataset Profiling
+### 🧠 AI Analyst
 
-The engine automatically examines the structure of an uploaded dataset, including:
+- Natural Language Analytics
+- Chat-based interface
+- Intelligent query routing
 
-- Number of rows and columns
-- Column names
-- Data types
-- Missing values
-- Unique values
-- Duplicate records
+Example:
 
-### Data Quality Detection
+> Predict customer churn
 
-The quality-analysis component detects issues such as:
+> Show histogram of Age
 
-- Missing values
-- Duplicate rows
-- Potential structural problems
-- Columns requiring cleaning
+> What is the correlation between Age and Balance?
 
-The workflow can conditionally decide whether the cleaning stage is required.
+---
 
-### Automated Data Cleaning
+### 🧩 Semantic Analyzer
 
-Supported data-quality problems can be cleaned automatically.
+Automatically detects
 
-The system records:
+- Identifier columns
+- Numerical features
+- Categorical features
+- Target columns
+- Feature columns
 
-- Original row count
-- Cleaned row count
-- Rows removed
-- Missing values before and after cleaning
-- Duplicate records before and after cleaning
-- Cleaning operations performed
+Supports intelligent target detection for datasets like:
 
-A validation stage verifies the result before downstream analysis.
+- Customer Churn
+- HR Attrition
+- Titanic Survival
+- Loan Default
+- Fraud Detection
 
-### Semantic Column Analysis
+---
 
-Column data types alone do not describe their analytical meaning.
+### 📊 Statistics Agent
 
-The semantic analyzer combines deterministic rules and LLM reasoning to classify columns into roles such as:
+Automatically performs
 
-- Identifier
-- Numerical feature
-- Categorical feature
-- Possible target
+- Descriptive Statistics
+- Correlation Analysis
+- Statistical Insights
+- Business Recommendations
 
-For example:
+---
 
-```text
-customer_id   → identifier
-age           → numerical_feature
-income        → numerical_feature
-contract_type → categorical_feature
-tenure        → numerical_feature
-churn         → possible_target
-```
+### 📈 Visualization Agent
 
-Identifier columns are excluded from inappropriate analytical operations such as correlations and feature visualisations.
-
-### Statistical Analysis
-
-The engine automatically computes analytical statistics including:
-
-- Numerical summaries
-- Categorical summaries
-- Correlation matrices
-
-Numerical statistics include:
-
-- Count
-- Mean
-- Standard deviation
-- Minimum
-- Quartiles
-- Median
-- Maximum
-
-### Intelligent EDA Planning
-
-Instead of blindly generating every possible chart, the EDA planner creates an analysis plan based on:
-
-- Data types
-- Semantic column roles
-- Cardinality
-- Available numerical features
-- Possible target columns
-
-Example task:
-
-```python
-{
-    "tool": "histogram",
-    "column": "age",
-    "reason": "Inspect the distribution of 'age'."
-}
-```
-
-This separates **planning** from **execution**.
-
-### Tool-Based EDA Execution
-
-The executor translates planned analytical tasks into actual tool calls.
-
-Supported visualisations include:
+Automatically generates
 
 - Histograms
-- Boxplots
-- Bar charts
-- Scatter plots
-- Correlation heatmaps
+- Scatter Plots
+- Bar Charts
+- Box Plots
 
-Failures are captured individually so that one unsuccessful task does not terminate the entire analytics workflow.
-
-### Target Analysis
-
-Possible target variables identified during semantic analysis receive additional analysis.
-
-For categorical targets, the engine can calculate class distributions such as:
-
-```text
-churn
-Yes → 4
-No  → 4
-```
-
-This prepares the architecture for future predictive analytics capabilities.
-
-### AI-Generated Insights
-
-After Python tools compute the analytical results, a local LLM interprets the structured evidence.
-
-The insight generator produces:
-
-- Overall analytical summary
-- Key insights
-- Evidence supporting each insight
-- Importance level
-- Target-specific observations
-- Data cautions
-
-The LLM is instructed to avoid inventing statistics and to distinguish association from causation.
-
-### Automated Analytics Report
-
-The workflow generates a Markdown report containing:
-
-- Executive summary
-- Dataset overview
-- Data-quality findings
-- Cleaning results
-- Semantic analysis
-- Statistical analysis
-- Target analysis
-- Key insights
-- Evidence
-- Data cautions
-- Generated visualisations
-
-Reports are generated under:
-
-```text
-outputs/reports/
-```
-
-### Streamlit Interface
-
-A Streamlit interface provides an interactive way to run the analytics engine without manually executing individual Python modules.
-
-Users can upload a CSV dataset and run the complete workflow from the browser.
+with AI-generated interpretations.
 
 ---
 
-## LangGraph Workflow
+### 🤖 Machine Learning Agent
 
-The system uses LangGraph to orchestrate the analytics pipeline.
+Supports automatic
 
-```text
-START
-  │
-  ▼
-load_dataset
-  │
-  ▼
-profile_dataset
-  │
-  ▼
-data_quality
-  │
-  ├──── clean ────► clean_dataset
-  │                    │
-  │                    ▼
-  │              validate_cleaning
-  │                    │
-  └──── skip ──────────┤
-                       ▼
-               semantic_analysis
-                       │
-                       ▼
-                analysis_dataset
-                       │
-                       ▼
-                    plan_eda
-                       │
-                       ▼
-                  execute_eda
-                       │
-                       ▼
-               generate_insights
-                       │
-                       ▼
-                generate_report
-                       │
-                       ▼
-                      END
-```
-
-Conditional routing allows the workflow to skip unnecessary cleaning when supported quality issues are not detected.
+- ML Problem Detection
+- Target Detection
+- Feature Selection
+- Data Preprocessing
+- Missing Value Handling
+- Feature Scaling
+- One-Hot Encoding
+- Train/Test Split
+- Model Training
+- Best Model Selection
 
 ---
 
-## Project Structure
+## 🏆 Supported Models
 
-```text
+### Classification
+
+- Logistic Regression
+- Decision Tree
+- Random Forest
+- Extra Trees
+- Gradient Boosting
+- XGBoost
+- LightGBM
+- CatBoost
+
+### Regression
+
+- Linear Regression
+- Decision Tree Regressor
+- Random Forest Regressor
+- Extra Trees Regressor
+- Gradient Boosting Regressor
+- XGBoost Regressor
+- LightGBM Regressor
+- CatBoost Regressor
+
+---
+
+# 🏗️ Architecture
+
+```
+                  User Question
+                         │
+                         ▼
+               Semantic Analyzer
+                         │
+                         ▼
+                 Intelligent Router
+         ┌───────────┼───────────┐
+         ▼           ▼           ▼
+ Statistics Agent Visualization ML Agent
+         │           │           │
+         └───────────┼───────────┘
+                     ▼
+              AI Generated Insights
+                     ▼
+              Streamlit Dashboard
+```
+
+---
+
+# 📂 Project Structure
+
+```
 Agentic-Analytics-Engine/
-│
+
 ├── data/
-│   └── samples/
-│       └── dirty_customers.csv
-│
-├── outputs/
-│   ├── charts/
-│   └── reports/
-│
 ├── src/
-│   ├── agents/
-│   │   ├── __init__.py
-│   │   ├── executor.py
-│   │   ├── graph.py
-│   │   ├── insight_generator.py
-│   │   ├── nodes.py
-│   │   ├── planner.py
-│   │   ├── report_generator.py
-│   │   ├── semantic_analyzer.py
-│   │   └── state.py
-│   │
-│   ├── llm/
-│   │   ├── __init__.py
-│   │   └── client.py
-│   │
-│   └── tools/
-│       ├── __init__.py
-│       ├── cleaning.py
-│       ├── data_loader.py
-│       ├── data_quality.py
-│       ├── profiler.py
-│       ├── statistics.py
-│       └── visualization.py
 │
-├── tests/
-│   ├── test_executor.py
-│   ├── test_insight_generator.py
-│   ├── test_llm.py
-│   ├── test_planner.py
-│   ├── test_report_generator.py
-│   └── test_semantic_analyzer.py
+├── agents/
+│   ├── router.py
+│   ├── router_graph.py
+│   ├── semantic_analyzer.py
+│   ├── statistical_*.py
+│   ├── visualization_*.py
+│   ├── ml_planner.py
+│   ├── ml_executor.py
+│   ├── ml_graph.py
+│   └── ml_insight.py
+│
+├── tools/
+│   ├── statistics.py
+│   ├── visualization.py
+│   └── ml_models.py
 │
 ├── ui/
-│   └── streamlit_app.py
+│   ├── streamlit_app.py
+│   └── components/
 │
-├── .gitignore
-├── app.py
-├── README.md
-└── requirements.txt
+├── tests/
+│
+└── README.md
 ```
 
 ---
 
-## Tech Stack
-
-### Core
-
-- Python
-- Pandas
-- NumPy
-
-### Agentic Workflow
-
-- LangGraph
-
-### Local AI
-
-- Ollama
-- Qwen3
-
-Default model:
-
-```text
-qwen3:4b
-```
-
-### Visualisation
-
-- Matplotlib
-- Seaborn
-
-### User Interface
-
-- Streamlit
-
-### Other
-
-- Requests
-- JSON
-- TypedDict
-
----
-
-## Installation
-
-### 1. Clone the repository
+# ⚙️ Installation
 
 ```bash
 git clone https://github.com/Blvackk/Agentic-Analytics-Engine.git
+
 cd Agentic-Analytics-Engine
-```
 
-### 2. Create a virtual environment
-
-Windows:
-
-```bash
 python -m venv .venv
-.venv\Scripts\activate
-```
 
-macOS/Linux:
-
-```bash
-python3 -m venv .venv
 source .venv/bin/activate
-```
+# Windows
+.venv\Scripts\activate
 
-### 3. Install dependencies
-
-```bash
 pip install -r requirements.txt
 ```
 
 ---
 
-## Ollama Setup
-
-The project currently uses a locally running Ollama model.
-
-Install Ollama and make sure the service is running.
-
-Pull the default model:
-
-```bash
-ollama pull qwen3:4b
-```
-
-Verify that the model is available:
-
-```bash
-ollama list
-```
-
-The application expects Ollama at:
-
-```text
-http://localhost:11434
-```
-
----
-
-## Running the Application
-
-### Streamlit UI
-
-From the project root:
+# ▶️ Run
 
 ```bash
 streamlit run ui/streamlit_app.py
 ```
 
-Then open the local address shown by Streamlit, typically:
+---
 
-```text
-http://localhost:8501
+# 🧪 Example Questions
+
+## Statistics
+
+```
+What is the correlation between Age and Balance?
 ```
 
-Upload a CSV dataset and run the analytics workflow.
+```
+Show summary statistics for CreditScore
+```
 
-### Command-Line Workflow
+---
 
-The complete workflow can also be executed using:
+## Visualization
+
+```
+Show histogram of Age
+```
+
+```
+Plot Age vs Balance
+```
+
+---
+
+## Machine Learning
+
+```
+Predict customer churn
+```
+
+```
+Build a churn prediction model
+```
+
+```
+Train a classification model
+```
+
+---
+
+# 📊 Machine Learning Pipeline
+
+```
+Dataset
+    │
+    ▼
+Semantic Analysis
+    │
+    ▼
+Target Detection
+    │
+    ▼
+Feature Selection
+    │
+    ▼
+Preprocessing
+    │
+    ▼
+Train/Test Split
+    │
+    ▼
+Multiple Models
+    │
+    ▼
+Performance Evaluation
+    │
+    ▼
+Best Model Selection
+```
+
+---
+
+# 🧪 Testing
+
+The project includes unit tests for
+
+- Semantic Analyzer
+- Router
+- Statistics Agent
+- Visualization Agent
+- Machine Learning Planner
+- Machine Learning Executor
+- Machine Learning Graph
+- Model Registry
+
+Run all tests
 
 ```bash
-python app.py
+pytest
 ```
 
 ---
 
-## Running Tests
+# 🚀 Roadmap
 
-Individual components can be tested independently.
+### ✅ Completed
 
-```bash
-python -m tests.test_llm
-python -m tests.test_semantic_analyzer
-python -m tests.test_planner
-python -m tests.test_executor
-python -m tests.test_insight_generator
-python -m tests.test_report_generator
-```
+- AI Analyst
+- Semantic Analyzer
+- Statistics Agent
+- Visualization Agent
+- Machine Learning Agent
+- Model Registry
+- Streamlit UI
 
-The tests validate important behaviour including:
+### 🔄 In Progress
 
-- LLM communication
-- Structured JSON generation
-- Identifier detection
-- Target detection
-- Identifier exclusion
-- EDA planning
-- EDA execution
-- Target analysis
-- Insight generation
-- Report generation
+- Model Comparison Dashboard
+- SHAP Explainability
+- MLflow Experiment Tracking
+- PDF Report Generation
 
----
+### 📅 Planned
 
-## Design Principles
-
-### Tools Calculate, LLM Interprets
-
-Raw analytical calculations are handled by deterministic Python tools.
-
-The LLM receives structured results and focuses on interpretation rather than performing numerical computation itself.
-
-### Semantic Awareness
-
-The engine distinguishes between the physical data type of a column and its analytical role.
-
-For example, an integer `customer_id` column should not automatically be treated as a numerical feature.
-
-### Planning and Execution Are Separate
-
-The planner determines **what analysis should be performed**, while the executor determines **how to perform it**.
-
-This architecture makes it easier to extend the engine with additional tools.
-
-### Evidence-Grounded Insights
-
-Generated insights are based on statistics calculated by the analytics pipeline.
-
-The LLM is instructed not to fabricate statistics, causal relationships, or unsupported business conclusions.
-
-### Failure Isolation
-
-An individual visualisation or analytical task can fail without terminating the entire workflow.
-
-Errors are recorded in the workflow state for inspection.
+- FastAPI Backend
+- Docker Support
+- GitHub Actions CI/CD
+- Multi-Agent Orchestration
+- LLM-powered Recommendations
 
 ---
 
-## Current Limitations
+# 🛠️ Tech Stack
 
-Phase 1 currently focuses on automated exploratory data analysis.
+### Programming
 
-Some limitations include:
+- Python
 
-- Primarily designed for CSV datasets
-- Local Ollama dependency
-- Semantic interpretation depends partly on LLM quality
-- Automatic cleaning intentionally supports a limited set of safe transformations
-- Small datasets can produce statistically unreliable relationships
-- Correlation analysis does not establish causation
-- No predictive ML pipeline yet
-- No conversational dataset querying yet
+### Data Science
 
----
+- Pandas
+- NumPy
+- SciPy
 
-## Roadmap
+### Machine Learning
 
-### Phase 1 — Automated Analytics Engine
+- Scikit-Learn
+- XGBoost
+- LightGBM
+- CatBoost
 
-- [X] Dataset loading
-- [X] Dataset profiling
-- [X] Data-quality detection
-- [X] Conditional cleaning
-- [X] Cleaning validation
-- [X] Semantic column analysis
-- [X] Statistical analysis
-- [X] EDA planning
-- [X] Tool execution
-- [X] Automated visualisation
-- [X] Target analysis
-- [X] LLM-generated insights
-- [X] Markdown report generation
-- [X] LangGraph orchestration
-- [X] Streamlit interface
+### Visualization
 
-### Phase 2 — Conversational Analytics
+- Matplotlib
+- Plotly
 
-Planned capabilities:
+### Frontend
 
-- [ ] Chat with uploaded datasets
-- [ ] Natural-language query understanding
-- [ ] Query-specific analytical planning
-- [ ] Dynamic tool selection
-- [ ] Query-specific statistical execution
-- [ ] Evidence-grounded answers
-- [ ] Follow-up questions
-- [ ] Conversation context
-- [ ] Interactive analytics through Streamlit
+- Streamlit
 
-### Future Extensions
+### AI
 
-Potential later additions include:
-
-- Automated ML problem detection
-- Feature engineering
-- Model selection and evaluation
-- MLflow experiment tracking
-- Forecasting workflows
-- Anomaly detection
-- SQL/database support
-- Excel support
-- Exportable PDF reports
-- Human approval checkpoints
-- Deployment
+- Rule-Based Router
+- Semantic Analysis
+- Multi-Agent Architecture
 
 ---
 
-## Example
+# 📜 License
 
-Given a customer dataset containing:
-
-```text
-customer_id
-age
-income
-contract_type
-tenure
-churn
-```
-
-the semantic analyzer may determine:
-
-```text
-customer_id   → Identifier
-age           → Numerical Feature
-income        → Numerical Feature
-contract_type → Categorical Feature
-tenure        → Numerical Feature
-churn         → Possible Target
-```
-
-The planner can then exclude `customer_id` from feature analysis while selecting appropriate statistical and visual analyses for the remaining columns.
-
-The resulting statistics are passed to the LLM, which generates evidence-grounded interpretations and cautions that are incorporated into the final report.
+MIT License
 
 ---
 
-## Repository
+# 👨‍💻 Author
 
-GitHub:
+**Pratik Lagishetty**
 
-https://github.com/Blvackk/Agentic-Analytics-Engine
+GitHub
+
+https://github.com/Blvackk
 
 ---
 
-## Status
-
-**Phase 1: Complete**
-
-The automated analytics workflow is operational end-to-end.
-
-Development is continuing with **Phase 2: Conversational Analytics / Chat with Data**.
+⭐ If you found this project useful, consider giving it a star!
